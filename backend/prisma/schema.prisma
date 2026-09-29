@@ -1,0 +1,129 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mongodb"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  PATIENT
+  DOCTOR
+  ADMIN
+}
+
+enum AppointmentStatus {
+  PENDING
+  CONFIRMED
+  COMPLETED
+  CANCELLED
+  NO_SHOW
+}
+
+model User {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  email     String   @unique
+  password  String
+  role      Role
+  createdAt DateTime @default(now())
+
+  patient Patient?
+  doctor  Doctor?
+}
+
+model Patient {
+  id          String    @id @default(auto()) @map("_id") @db.ObjectId
+  userId      String    @unique @db.ObjectId
+  user        User      @relation(fields: [userId], references: [id])
+  firstName   String
+  lastName    String
+  dateOfBirth DateTime?
+  phone       String?
+  sex         String?
+  address     String?
+
+  appointments   Appointment[]
+  medicalRecords MedicalRecord[]
+}
+
+model Location {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  name      String
+  address   String?
+  city      String
+  state     String
+  doctors   Doctor[]
+}
+
+model Speciality {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  name        String
+  description String?
+  icon        String?
+  doctors     Doctor[]
+}
+
+model HealthPackage {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  name        String
+  description String
+  price       Int
+  tests       String[]
+}
+
+model Doctor {
+  id              String @id @default(auto()) @map("_id") @db.ObjectId
+  userId          String @unique @db.ObjectId
+  user            User   @relation(fields: [userId], references: [id])
+  firstName       String
+  lastName        String
+  specialization  String // Legacy field
+  experienceYears Int    @default(0)
+  locationId      String? @db.ObjectId
+  specialityId    String? @db.ObjectId
+  profileImageUrl String?
+
+  location        Location?   @relation(fields: [locationId], references: [id])
+  speciality      Speciality? @relation(fields: [specialityId], references: [id])
+
+  appointments Appointment[]
+  availability Availability[]
+}
+
+model Appointment {
+  id        String            @id @default(auto()) @map("_id") @db.ObjectId
+  patientId String            @db.ObjectId
+  doctorId  String            @db.ObjectId
+  date      DateTime
+  startTime     String
+  status        AppointmentStatus @default(PENDING)
+  notes         String?
+  fee           Int               @default(5000) // $50.00 in cents
+  paymentStatus String            @default("UNPAID")
+  paymentIntent String?
+
+  patient Patient @relation(fields: [patientId], references: [id])
+  doctor  Doctor  @relation(fields: [doctorId], references: [id])
+}
+
+model MedicalRecord {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  patientId   String   @db.ObjectId
+  title       String
+  description String
+  fileUrl     String?
+  createdAt   DateTime @default(now())
+
+  patient Patient @relation(fields: [patientId], references: [id])
+}
+
+model Availability {
+  id        String @id @default(auto()) @map("_id") @db.ObjectId
+  doctorId  String @db.ObjectId
+  dayOfWeek Int
+  startTime String
+  endTime   String
+
+  doctor Doctor @relation(fields: [doctorId], references: [id])
+}
