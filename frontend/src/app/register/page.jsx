@@ -55,6 +55,7 @@ export default function Register() {
       );
       localStorage.setItem("token", data.registerPatient.token);
       localStorage.setItem("user", JSON.stringify(data.registerPatient.user));
+      localStorage.removeItem("demoRole");
       router.replace("/patient/dashboard");
     } catch (registrationError) {
       setError(registrationError.message);
@@ -64,7 +65,7 @@ export default function Register() {
   };
 
   return (
-    <main className="min-h-screen bg-[var(--bg)] px-4 py-8 sm:px-6">
+    <main className="grid min-h-screen place-items-center bg-[var(--bg)] px-4 py-8 sm:px-6">
       <div className="auth-shell register-shell mx-auto">
         <section className="auth-visual">
           <div className="auth-visual-bg" />

@@ -41,6 +41,8 @@ test('JWT requires configured strong secret and verifies issuer, audience and ro
   try {
     const token = createToken({ id: OBJECT_ID, role: 'PATIENT' });
     assert.deepEqual(verifyToken(token), { id: OBJECT_ID, role: 'PATIENT' });
+    const superadminToken = createToken({ id: OBJECT_ID, role: 'SUPERADMIN' });
+    assert.deepEqual(verifyToken(superadminToken), { id: OBJECT_ID, role: 'SUPERADMIN' });
     assert.throws(() => verifyToken(`${token}tampered`));
     assert.throws(() => requireRole({ id: OBJECT_ID, role: 'PATIENT' }, 'DOCTOR'), /Not authorized/);
   } finally {
@@ -127,6 +129,55 @@ test('login verifies stored password and returns no password hash', async () => 
       resolvers.Mutation.login(null, { email: 'asha@example.com', password: 'incorrect!', role: 'PATIENT' }, { prisma }),
       /Invalid credentials/,
     );
+  } finally {
+    if (oldSecret === undefined) delete process.env.JWT_SECRET;
+    else process.env.JWT_SECRET = oldSecret;
+  }
+});
+
+test('patient can sign in with a normalized mobile number without exposing an internal email', async () => {
+  const oldSecret = process.env.JWT_SECRET;
+  process.env.JWT_SECRET = TEST_SECRET;
+  const password = await bcrypt.hash('Password123!', 4);
+  let searchedPhone;
+  const patientProfile = {
+    id: OTHER_ID,
+    firstName: 'Asha',
+    lastName: 'Sharma',
+    phone: '+15550101001',
+    user: {
+      id: OBJECT_ID,
+      email: `phone-15550101001${'@phone.invalid'}`,
+      role: 'PATIENT',
+      password,
+      patient: {
+        id: OTHER_ID,
+        firstName: 'Asha',
+        lastName: 'Sharma',
+        phone: '+15550101001',
+      },
+      doctor: null,
+    },
+  };
+  const prisma = {
+    user: { findUnique: async () => null },
+    patient: {
+      findFirst: async ({ where }) => {
+        searchedPhone = where.phone;
+        return patientProfile;
+      },
+    },
+  };
+  try {
+    const result = await resolvers.Mutation.login(null, {
+      email: '+1 (555) 010-1001',
+      password: 'Password123!',
+      role: 'patient',
+    }, { prisma });
+    assert.equal(searchedPhone, '+15550101001');
+    assert.equal(result.user.email, null);
+    assert.equal(result.user.patient.phone, '+15550101001');
+    assert.deepEqual(verifyToken(result.token), { id: OBJECT_ID, role: 'PATIENT' });
   } finally {
     if (oldSecret === undefined) delete process.env.JWT_SECRET;
     else process.env.JWT_SECRET = oldSecret;

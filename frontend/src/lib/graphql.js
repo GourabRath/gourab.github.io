@@ -15,6 +15,11 @@ export function getSession() {
   }
 }
 
+export function isDemoSession(role) {
+  if (typeof window === "undefined") return false;
+  return window.localStorage.getItem("demoRole") === role;
+}
+
 export function isAuthenticationError(error) {
   return /auth|token|unauthorized|forbidden/i.test(error?.message || "");
 }

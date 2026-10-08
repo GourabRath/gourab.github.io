@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { formatDate, graphqlRequest, isAuthenticationError } from "@/lib/graphql";
+import { formatDate, graphqlRequest, isAuthenticationError, isDemoSession } from "@/lib/graphql";
 
 const appointmentFields = `
   id date startTime status notes
@@ -35,6 +35,7 @@ export default function PatientDashboard() {
   const [aiResponse, setAiResponse] = useState("");
   const [aiLoading, setAiLoading] = useState(false);
   const [busyAppointmentId, setBusyAppointmentId] = useState("");
+  const [demoLogin, setDemoLogin] = useState(false);
 
   const loadDashboard = useCallback(async () => {
     setError("");
@@ -52,6 +53,7 @@ export default function PatientDashboard() {
     }
 
     setUser(data.me);
+    setDemoLogin(isDemoSession("PATIENT"));
     setDoctors(data.doctors || []);
     setAppointments(data.myAppointments || []);
     setSelectedDoctorId(
@@ -74,6 +76,7 @@ export default function PatientDashboard() {
           if (isAuthenticationError(loadError)) {
             localStorage.removeItem("token");
             localStorage.removeItem("user");
+            localStorage.removeItem("demoRole");
             router.replace("/login?role=patient");
           }
         }
@@ -159,6 +162,7 @@ export default function PatientDashboard() {
   const signOut = () => {
     localStorage.removeItem("token");
     localStorage.removeItem("user");
+    localStorage.removeItem("demoRole");
     router.replace("/login?role=patient");
   };
 
@@ -187,7 +191,7 @@ export default function PatientDashboard() {
           </Link>
           <div className="flex items-center gap-3">
             <span className="hidden text-sm text-[var(--ink-soft)] sm:block">
-              {user?.patient?.firstName || user?.email || user?.patient?.phone || "Patient"}
+              {demoLogin ? "Patient" : user?.patient?.firstName || user?.email || user?.patient?.phone || "Patient"}
             </span>
             <button
               className="rounded-lg border border-[var(--border)] px-3 py-2 text-sm font-semibold transition hover:bg-gray-50 disabled:opacity-50"
@@ -206,7 +210,7 @@ export default function PatientDashboard() {
               Your care, in one place
             </p>
             <h1 className="mt-2 text-3xl font-bold">
-              Welcome, {user?.patient?.firstName || "Patient"}
+              Welcome, {demoLogin ? "Patient" : user?.patient?.firstName || "Patient"}
             </h1>
             <p className="mt-2 text-[var(--ink-soft)]">
               Book visits, follow your appointments, and keep your records close.

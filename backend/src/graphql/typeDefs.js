@@ -1,6 +1,7 @@
 const typeDefs = `#graphql
   type User {
     id: ID!
+    publicId: String
     email: String
     role: String!
     patient: Patient
@@ -9,9 +10,13 @@ const typeDefs = `#graphql
 
   type Patient {
     id: ID!
+    publicId: String
     firstName: String!
     lastName: String!
     phone: String
+    dob: String
+    sex: String
+    address: String
     user: User
   }
 
@@ -39,6 +44,7 @@ const typeDefs = `#graphql
 
   type Doctor {
     id: ID!
+    publicId: String
     firstName: String!
     lastName: String!
     specialization: String!
@@ -90,9 +96,30 @@ const typeDefs = `#graphql
     pendingAppointmentCount: Int!
   }
 
+  type AdminAccount {
+    id: ID!
+    publicId: String
+    email: String!
+    role: String!
+    createdAt: String!
+  }
+
+  type PlatformMetrics {
+    patientCount: Int!
+    doctorCount: Int!
+    adminCount: Int!
+    appointmentCount: Int!
+    pendingAppointmentCount: Int!
+    generatedAt: String!
+  }
+
   type Query {
     me: User
     adminOverview: AdminOverview!
+    platformMetrics: PlatformMetrics!
+    superadminPatientProfiles(limit: Int, offset: Int): [Patient!]!
+    superadminDoctorProfiles(limit: Int, offset: Int): [Doctor!]!
+    superadminAccounts(limit: Int, offset: Int): [AdminAccount!]!
     doctors(locationId: ID, specialityId: ID, search: String): [Doctor]
     locations: [Location]
     specialities: [Speciality]
@@ -120,6 +147,15 @@ const typeDefs = `#graphql
     updateAppointmentStatus(appointmentId: ID!, status: String!): Appointment!
     createPaymentIntent(appointmentId: ID!): String!
     addMedicalRecord(patientId: ID!, title: String!, description: String!, fileUrl: String): MedicalRecord!
+    createPatientProfile(email: String, phone: String, password: String!, firstName: String!, lastName: String!, dob: String, sex: String, address: String): Patient!
+    createDoctorProfile(email: String!, password: String!, firstName: String!, lastName: String!, specialization: String!, experienceYears: Int, locationId: ID, specialityId: ID, profileImageUrl: String): Doctor!
+    updatePatientProfile(patientId: ID!, email: String, password: String, firstName: String, lastName: String, phone: String, dob: String, sex: String, address: String): Patient!
+    updateDoctorProfile(doctorId: ID!, email: String, password: String, firstName: String, lastName: String, specialization: String, experienceYears: Int, locationId: ID, specialityId: ID, profileImageUrl: String): Doctor!
+    deletePatientProfile(patientId: ID!): Boolean!
+    deleteDoctorProfile(doctorId: ID!): Boolean!
+    createAdminAccount(email: String!, password: String!): AdminAccount!
+    updateAdminAccount(adminUserId: ID!, email: String, password: String, role: String): AdminAccount!
+    deleteAdminAccount(adminUserId: ID!): Boolean!
   }
 `;
 

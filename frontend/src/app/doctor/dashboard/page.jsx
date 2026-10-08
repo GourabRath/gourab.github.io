@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { formatDate, graphqlRequest, isAuthenticationError } from "@/lib/graphql";
+import { formatDate, graphqlRequest, isAuthenticationError, isDemoSession } from "@/lib/graphql";
 
 export default function DoctorDashboard() {
   const router = useRouter();
@@ -17,6 +17,7 @@ export default function DoctorDashboard() {
   const [noteDescription, setNoteDescription] = useState("");
   const [noteMessage, setNoteMessage] = useState("");
   const [noteSaving, setNoteSaving] = useState(false);
+  const [demoLogin, setDemoLogin] = useState(false);
 
   const loadDashboard = useCallback(async () => {
     setError("");
@@ -34,6 +35,7 @@ export default function DoctorDashboard() {
       throw new Error("This page is available to doctor accounts.");
     }
     setDoctor(data.me);
+    setDemoLogin(isDemoSession("DOCTOR"));
     setAppointments(data.myAppointments || []);
   }, []);
 
@@ -48,6 +50,7 @@ export default function DoctorDashboard() {
           if (isAuthenticationError(loadError)) {
             localStorage.removeItem("token");
             localStorage.removeItem("user");
+            localStorage.removeItem("demoRole");
             router.replace("/login?role=doctor");
           }
         }
@@ -111,6 +114,7 @@ export default function DoctorDashboard() {
   const signOut = () => {
     localStorage.removeItem("token");
     localStorage.removeItem("user");
+    localStorage.removeItem("demoRole");
     router.replace("/login?role=doctor");
   };
 
@@ -141,7 +145,7 @@ export default function DoctorDashboard() {
         <section>
           <p className="text-sm font-semibold uppercase tracking-widest text-[var(--gold-dark)]">Provider workspace</p>
           <h1 className="mt-2 text-3xl font-bold">
-            Good day, Dr. {doctor?.doctor?.firstName || "Doctor"}
+            {demoLogin ? "Welcome, Doctor" : `Good day, Dr. ${doctor?.doctor?.firstName || "Doctor"}`}
           </h1>
           <p className="mt-2 text-[var(--ink-soft)]">
             Review appointment requests, manage your schedule, and document completed visits.

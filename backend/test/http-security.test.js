@@ -41,6 +41,17 @@ test('request authentication rejects missing, invalid, deleted, and role-stale t
     assert.equal(await authenticateRequest({ headers: { authorization: `Bearer ${token}` } }, database), null);
     database.user.findUnique = async () => ({ id: USER_ID, role: 'DOCTOR' });
     assert.equal(await authenticateRequest({ headers: { authorization: `Bearer ${token}` } }, database), null);
+    const superadminToken = createToken({ id: USER_ID, role: 'SUPERADMIN' });
+    database.user.findUnique = async () => ({ id: USER_ID, role: 'SUPERADMIN' });
+    assert.deepEqual(
+      await authenticateRequest({ headers: { authorization: `Bearer ${superadminToken}` } }, database),
+      { id: USER_ID, role: 'SUPERADMIN' },
+    );
+    database.user.findUnique = async () => ({ id: USER_ID, role: 'ADMIN' });
+    assert.equal(
+      await authenticateRequest({ headers: { authorization: `Bearer ${superadminToken}` } }, database),
+      null,
+    );
   } finally {
     if (previousSecret === undefined) delete process.env.JWT_SECRET;
     else process.env.JWT_SECRET = previousSecret;

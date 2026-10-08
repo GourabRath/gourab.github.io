@@ -1,5 +1,6 @@
 const { PrismaClient } = require('@prisma/client');
 const bcrypt = require('bcryptjs');
+const { randomInt } = require('node:crypto');
 const { normalizePhone } = require('./security');
 
 const prisma = new PrismaClient();
@@ -14,14 +15,39 @@ function dateOffset(days) {
 
 async function findOrCreateUser({ email, password, role }) {
   const existing = await prisma.user.findUnique({ where: { email } });
-  if (existing) return existing;
-  return prisma.user.create({
-    data: {
-      email,
-      password,
-      role,
-    },
+  const prefix = role === 'PATIENT' ? 'P' : role === 'DOCTOR' ? 'D' : 'A';
+  let user = existing || await prisma.user.create({
+    data: { email, password, role, publicId: `${prefix}${String(randomInt(0, 1_000_000)).padStart(6, '0')}` },
   });
+  if (!user.publicId) {
+    for (let attempt = 0; attempt < 8; attempt += 1) {
+      try {
+        user = await prisma.user.update({
+          where: { id: user.id },
+          data: { publicId: `${prefix}${String(randomInt(0, 1_000_000)).padStart(6, '0')}` },
+        });
+        break;
+      } catch (error) {
+        if (attempt === 7 || !error || error.code !== 'P2002') throw error;
+      }
+    }
+  }
+  return user;
+}
+
+async function ensureProfilePublicId(model, profile, prefix) {
+  if (profile.publicId) return profile;
+  for (let attempt = 0; attempt < 8; attempt += 1) {
+    try {
+      return await model.update({
+        where: { id: profile.id },
+        data: { publicId: `${prefix}${String(randomInt(0, 1_000_000)).padStart(6, '0')}` },
+      });
+    } catch (error) {
+      if (attempt === 7 || !error || error.code !== 'P2002') throw error;
+    }
+  }
+  throw new Error('Unable to allocate a public profile identifier.');
 }
 
 async function main() {
@@ -49,6 +75,7 @@ async function main() {
       data: { phone: normalizePhone('+1 555 010 1001') },
     });
   }
+  patient = await ensureProfilePublicId(prisma.patient, patient, 'P');
 
   const location = await prisma.location.findFirst({
     where: { name: 'MediCare City Hospital' },
@@ -98,6 +125,7 @@ async function main() {
       },
     });
   }
+  doctor = await ensureProfilePublicId(prisma.doctor, doctor, 'D');
 
   await findOrCreateUser({
     email: 'admin@medicare.com',
@@ -127,13 +155,11 @@ async function main() {
   ];
 
   for (const demo of demoAppointments) {
-    const date = dateOffset(demo.days);
     const existing = await prisma.appointment.findFirst({
       where: {
         patientId: patient.id,
         doctorId: doctor.id,
-        date,
-        startTime: demo.startTime,
+        notes: demo.notes,
       },
       select: { id: true },
     });
@@ -142,7 +168,7 @@ async function main() {
         data: {
           patientId: patient.id,
           doctorId: doctor.id,
-          date,
+          date: dateOffset(demo.days),
           startTime: demo.startTime,
           status: demo.status,
           notes: demo.notes,
@@ -151,13 +177,11 @@ async function main() {
     }
   }
 
-  const completedAppointmentDate = dateOffset(-7);
   const completedAppointment = await prisma.appointment.findFirst({
     where: {
       patientId: patient.id,
       doctorId: doctor.id,
-      date: completedAppointmentDate,
-      startTime: '09:00',
+      notes: 'Demo appointment: routine wellness consultation.',
     },
     select: { id: true },
   });

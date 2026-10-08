@@ -10,6 +10,8 @@
     "prisma:validate": "prisma validate",
     "db:push": "prisma db push",
     "seed": "node src/seed.js",
+    "seed:superadmin": "node src/seed-superadmin.js",
+    "backfill:public-ids": "node src/backfill-public-ids.js",
     "postinstall": "prisma skills sync || exit 0"
   },
   "keywords": [],

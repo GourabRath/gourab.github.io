@@ -13,7 +13,12 @@ optional AI-generated health information.
 ## Requirements
 
 - Node.js 20 or newer
-- MongoDB running locally or a MongoDB connection string
+- MongoDB running as a replica set locally or remotely (required by Prisma's MongoDB transaction support)
+
+For a local single-node replica set, configure MongoDB to start with replica-set
+name `rs0` and initialize it once with `mongosh --eval "rs.initiate()"`. Do not
+run a second `mongod` against the same data directory while another MongoDB
+service is active.
 
 ## Setup
 
@@ -26,7 +31,8 @@ Copy-Item .env.example .env
 ```
 
 Edit `backend/.env` before starting the server. Set `DATABASE_URL` to your
-MongoDB database and replace `JWT_SECRET` with a randomly generated secret of
+MongoDB replica-set database (for a local single-node replica set, include
+`?replicaSet=rs0`) and replace `JWT_SECRET` with a randomly generated secret of
 at least 32 characters. `GEMINI_API_KEY` is optional; without it, the AI
 guidance feature reports that it is unavailable.
 
@@ -60,8 +66,8 @@ Set-Location backend
 npm.cmd start
 ```
 
-The seed command creates local demo accounts when they do not already exist
-(run it after database setup):
+The seed command creates local demo accounts and sample patient workflows when
+they do not already exist (run it after database setup):
 
 | Role | Email | Password |
 |---|---|---|
@@ -92,7 +98,29 @@ frontend in separate command windows. MongoDB must be running.
 - `/login` — patient, doctor, or admin sign-in
 - `/patient/dashboard` — appointments, records, and optional AI guidance
 - `/doctor/dashboard` — appointment requests and visit-note entry
-- `/admin/dashboard` — database-backed operational totals and doctor directory
+- `/admin/dashboard` — database-backed operational totals, appointment actions, and patient/doctor profile creation
+- `/medicare.superadmin` — restricted account/profile management; requires a provisioned `SUPERADMIN` account and has no public navigation link
+
+## Superadmin setup
+
+Create the first superadmin only after the database replica set is configured,
+the schema is pushed, and the Prisma client is generated. Set `SUPERADMIN_EMAIL`
+and `SUPERADMIN_PASSWORD` in `backend/.env`, then run:
+
+```powershell
+Set-Location backend
+npm.cmd run seed:superadmin
+npm.cmd run backfill:public-ids
+```
+
+Remove the temporary bootstrap values after creating the account. Sign in at
+`/login?role=superadmin`; successful authentication opens
+`/medicare.superadmin`. The route is hidden from navigation but is not a
+security boundary: all sensitive profile/admin APIs enforce the
+`SUPERADMIN` role on the server. Ordinary admins may create patient and doctor
+profiles; only superadmins may edit/delete profiles or manage admin accounts.
+Profile numbers use `P`/`D`/`A` plus six digits and are not passwords or login
+credentials.
 
 ## Validation
 

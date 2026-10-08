@@ -3,7 +3,7 @@ const jwt = require('jsonwebtoken');
 const JWT_ISSUER = 'medicare-api';
 const JWT_AUDIENCE = 'medicare-app';
 const TOKEN_LIFETIME = '8h';
-const ROLES = ['PATIENT', 'DOCTOR', 'ADMIN'];
+const ROLES = ['PATIENT', 'DOCTOR', 'ADMIN', 'SUPERADMIN'];
 
 function publicError(message, code = 'BAD_USER_INPUT') {
   const error = new Error(message);
