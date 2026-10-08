@@ -22,7 +22,6 @@ From the repository root, install each app's dependencies:
 ```powershell
 Set-Location backend
 npm.cmd install
-npx.cmd prisma generate
 Copy-Item .env.example .env
 ```
 
@@ -30,6 +29,15 @@ Edit `backend/.env` before starting the server. Set `DATABASE_URL` to your
 MongoDB database and replace `JWT_SECRET` with a randomly generated secret of
 at least 32 characters. `GEMINI_API_KEY` is optional; without it, the AI
 guidance feature reports that it is unavailable.
+
+Then prepare and seed the database:
+
+```powershell
+npm.cmd run prisma:validate
+npm.cmd run prisma:generate
+npm.cmd run db:push
+npm.cmd run seed
+```
 
 In a second terminal, install and start the frontend:
 
@@ -49,11 +57,11 @@ In another terminal:
 
 ```powershell
 Set-Location backend
-node src/seed.js
-node src/index.js
+npm.cmd start
 ```
 
-The seed command creates local demo accounts when they do not already exist:
+The seed command creates local demo accounts when they do not already exist
+(run it after database setup):
 
 | Role | Email | Password |
 |---|---|---|
@@ -65,9 +73,16 @@ These credentials are for local development only. Change/remove them before
 sharing a deployment. Never commit `.env` files or use the example JWT secret
 outside a local demo.
 
-You can also use `start.bat` from the repository root to open the backend and
-frontend in separate command windows after configuring MongoDB and the backend
-environment.
+The sign-in page also includes an **Enter demo** button for the selected role.
+It signs in through the normal backend login and does not bypass authentication.
+Patients can sign in with their email address or mobile number and password.
+Patient registration accepts either contact identifier (or both) and a
+password; there is no OTP or second-factor step in this demo.
+
+After installing dependencies, generating the Prisma client, pushing the
+schema, and configuring `backend/.env`, you can run `start.bat` from the
+repository root. It seeds the demo accounts, then opens the backend and
+frontend in separate command windows. MongoDB must be running.
 
 ## Main routes
 

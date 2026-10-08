@@ -5,6 +5,12 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { graphqlRequest } from "@/lib/graphql";
 
+const DEMO_ACCOUNTS = {
+  patient: { identifier: "asha@example.com", password: "Password123!" },
+  doctor: { identifier: "dr.watson@medicare.com", password: "Password123!" },
+  admin: { identifier: "admin@medicare.com", password: "Password123!" },
+};
+
 function LoginContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -18,8 +24,12 @@ function LoginContent() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
-  const signIn = async (event) => {
-    event.preventDefault();
+  const authenticate = async (
+    accountRole,
+    accountIdentifier,
+    accountPassword,
+    isDemo = false,
+  ) => {
     if (loading) return;
 
     setLoading(true);
@@ -31,7 +41,7 @@ function LoginContent() {
             token user { id email role }
           }
         }`,
-        { email: identity.trim(), password, role },
+        { email: accountIdentifier.trim(), password: accountPassword, role: accountRole },
       );
       const { token, user } = data.login;
       localStorage.setItem("token", token);
@@ -50,10 +60,26 @@ function LoginContent() {
           : destination,
       );
     } catch (loginError) {
-      setError(loginError.message);
+      setError(
+        isDemo
+          ? `Demo sign-in failed: ${loginError.message} Check that the backend is running and its demo accounts are seeded.`
+          : loginError.message,
+      );
     } finally {
       setLoading(false);
     }
+  };
+
+  const signIn = async (event) => {
+    event.preventDefault();
+    await authenticate(role, identity, password);
+  };
+
+  const signInDemo = async () => {
+    const demo = DEMO_ACCOUNTS[role];
+    setIdentity(demo.identifier);
+    setPassword(demo.password);
+    await authenticate(role, demo.identifier, demo.password, true);
   };
 
   return (
@@ -77,7 +103,9 @@ function LoginContent() {
           <div className="form-head">
             <div className="eyebrow">{role} portal</div>
             <h2>Welcome back</h2>
-            <p>Sign in to continue to your account.</p>
+            <p>
+              Password-only sign-in. Patients may use their email or mobile number; no OTP or 2FA.
+            </p>
           </div>
 
           <div className="role-switch" aria-label="Choose account type">
@@ -136,7 +164,23 @@ function LoginContent() {
               New to MediCare? <Link href="/register">Create a patient account</Link>
             </p>
           )}
-          <p className="mt-6 text-center text-xs leading-5 text-[var(--ink-faint)]">
+          <div className="my-5 flex items-center gap-3 text-xs text-[var(--ink-faint)]">
+            <span className="h-px flex-1 bg-[var(--border)]" />
+            or explore with a demo account
+            <span className="h-px flex-1 bg-[var(--border)]" />
+          </div>
+          <button
+            className="w-full rounded-xl border border-[var(--teal)] bg-[var(--teal-tint)] px-4 py-3 font-semibold text-[var(--teal-dark)] transition hover:-translate-y-0.5 hover:shadow-sm disabled:cursor-not-allowed disabled:opacity-50"
+            type="button"
+            onClick={signInDemo}
+            disabled={loading}
+          >
+            {loading ? "Connecting to demo…" : `Enter ${role} demo`}
+          </button>
+          <p className="mt-2 text-center text-xs text-[var(--ink-faint)]">
+            Demo sign-in uses the seeded sample account for this role.
+          </p>
+          <p className="mt-5 text-center text-xs leading-5 text-[var(--ink-faint)]">
             For emergencies, call your local emergency number. This portal is not an emergency service.
           </p>
         </section>

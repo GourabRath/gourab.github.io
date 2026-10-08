@@ -84,10 +84,10 @@ const typeDefs = `#graphql
   }
 
   type AdminOverview {
-    patients: Int!
-    doctors: Int!
-    totalAppointments: Int!
-    pendingAppointments: Int!
+    patientCount: Int!
+    doctorCount: Int!
+    appointmentCount: Int!
+    pendingAppointmentCount: Int!
   }
 
   type Query {
@@ -99,6 +99,7 @@ const typeDefs = `#graphql
     healthPackages: [HealthPackage]
     doctorAvailability(doctorId: ID!): [Availability!]!
     myAppointments: [Appointment]
+    myMedicalRecords: [MedicalRecord!]!
     patientMedicalRecords(patientId: ID!): [MedicalRecord]
   }
 

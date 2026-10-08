@@ -95,6 +95,20 @@ test('Express/Apollo boots with validated configuration and serves a GraphQL req
     const protectedBody = await protectedResponse.json();
     assert.equal(protectedBody.errors[0].extensions.code, 'UNAUTHENTICATED');
     assert.equal(protectedBody.errors[0].message, 'Authentication required.');
+    const adminSchemaResponse = await fetch(`http://127.0.0.1:${port}/graphql`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Apollo-Require-Preflight': 'true',
+      },
+      body: JSON.stringify({
+        query: '{ adminOverview { patientCount doctorCount appointmentCount pendingAppointmentCount } }',
+      }),
+    });
+    const adminSchemaBody = await adminSchemaResponse.json();
+    assert.equal(adminSchemaBody.errors[0].extensions.code, 'UNAUTHENTICATED');
+    assert.equal(adminSchemaBody.errors[0].message, 'Authentication required.');
+    assert.doesNotMatch(adminSchemaBody.errors[0].message, /Cannot query field/);
   } finally {
     if (running) {
       await running.apollo.stop();

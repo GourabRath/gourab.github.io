@@ -20,8 +20,16 @@ const OBJECT_ID = '507f1f77bcf86cd799439011';
 const OTHER_ID = '507f1f77bcf86cd799439012';
 
 test('GraphQL schema parses and includes availability and protected workflows', () => {
-  assert.doesNotThrow(() => buildSchema(typeDefs));
+  const schema = buildSchema(typeDefs);
   assert.doesNotMatch(typeDefs, /type User \{[^}]*\bpassword\s*:/is);
+  const overviewFields = schema.getType('AdminOverview').getFields();
+  assert.deepEqual(Object.keys(overviewFields), [
+    'patientCount',
+    'doctorCount',
+    'appointmentCount',
+    'pendingAppointmentCount',
+  ]);
+  assert.ok(schema.getQueryType().getFields().myMedicalRecords);
 });
 
 test('JWT requires configured strong secret and verifies issuer, audience and role', () => {
@@ -68,10 +76,10 @@ test('admin overview returns database counts and denies other roles before query
     prisma, user: { id: OBJECT_ID, role: 'ADMIN' },
   });
   assert.deepEqual(overview, {
-    patients: 8,
-    doctors: 3,
-    totalAppointments: 17,
-    pendingAppointments: 2,
+    patientCount: 8,
+    doctorCount: 3,
+    appointmentCount: 17,
+    pendingAppointmentCount: 2,
   });
   assert.deepEqual(countCalls[3], ['appointments', { where: { status: 'PENDING' } }]);
 });
@@ -212,6 +220,30 @@ test('patient owner and treating doctor can read their medical records', async (
   assert.deepEqual(patientRecords, returnedRecords);
   assert.deepEqual(doctorRecords, returnedRecords);
   assert.equal(readCount, 2);
+});
+
+test('myMedicalRecords resolves the authenticated patient profile without a client ID', async () => {
+  const requestedPatientIds = [];
+  const prisma = {
+    patient: {
+      findUnique: async ({ where }) => where.userId === OBJECT_ID ? { id: OTHER_ID } : null,
+    },
+    medicalRecord: {
+      findMany: async ({ where }) => {
+        requestedPatientIds.push(where.patientId);
+        return [{ id: OBJECT_ID, patientId: where.patientId }];
+      },
+    },
+  };
+  const records = await resolvers.Query.myMedicalRecords(null, {}, {
+    prisma, user: { id: OBJECT_ID, role: 'PATIENT' },
+  });
+  assert.deepEqual(records, [{ id: OBJECT_ID, patientId: OTHER_ID }]);
+  assert.deepEqual(requestedPatientIds, [OTHER_ID]);
+  await assert.rejects(
+    resolvers.Query.myMedicalRecords(null, {}, { prisma, user: { id: OBJECT_ID, role: 'DOCTOR' } }),
+    /Not authorized/,
+  );
 });
 
 test('admin can review records and confirm appointments without bypassing transition rules', async () => {

@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { formatDate, graphqlRequest } from "@/lib/graphql";
+import { formatDate, graphqlRequest, isAuthenticationError } from "@/lib/graphql";
 
 export default function DoctorDashboard() {
   const router = useRouter();
@@ -45,7 +45,9 @@ export default function DoctorDashboard() {
       } catch (loadError) {
         if (active) {
           setError(loadError.message);
-          if (loadError.message.toLowerCase().includes("auth")) {
+          if (isAuthenticationError(loadError)) {
+            localStorage.removeItem("token");
+            localStorage.removeItem("user");
             router.replace("/login?role=doctor");
           }
         }

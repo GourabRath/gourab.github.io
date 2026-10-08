@@ -45,6 +45,30 @@ function validateFileUrl(value) {
   throw publicError('Invalid record URL.');
 }
 
+async function readPatientMedicalRecords(patientId, prisma, user) {
+  const actor = requireUser(user);
+  const targetId = validateObjectId(patientId, 'patient identifier');
+  if (actor.role === 'PATIENT') {
+    const profile = await prisma.patient.findUnique({ where: { userId: actor.id }, select: { id: true } });
+    if (!profile || profile.id !== targetId) throw publicError('Not authorized.', 'FORBIDDEN');
+  } else if (actor.role === 'DOCTOR') {
+    const doctor = await prisma.doctor.findUnique({ where: { userId: actor.id }, select: { id: true } });
+    const treating = doctor && await prisma.appointment.findFirst({
+      where: { patientId: targetId, doctorId: doctor.id },
+      select: { id: true },
+    });
+    if (!treating) throw publicError('Not authorized.', 'FORBIDDEN');
+  } else if (actor.role !== 'ADMIN') {
+    throw publicError('Not authorized.', 'FORBIDDEN');
+  }
+  audit('medical-record.read', actor.id, targetId);
+  return prisma.medicalRecord.findMany({
+    where: { patientId: targetId },
+    include: { patient: true },
+    orderBy: { createdAt: 'desc' },
+  });
+}
+
 const resolvers = {
   Query: {
     me: async (_, __, { prisma, user }) => {
@@ -54,14 +78,14 @@ const resolvers = {
     },
     adminOverview: async (_, __, { prisma, user }) => {
       const actor = requireRole(user, 'ADMIN');
-      const [patients, doctors, totalAppointments, pendingAppointments] = await Promise.all([
+      const [patientCount, doctorCount, appointmentCount, pendingAppointmentCount] = await Promise.all([
         prisma.patient.count(),
         prisma.doctor.count(),
         prisma.appointment.count(),
         prisma.appointment.count({ where: { status: 'PENDING' } }),
       ]);
       audit('admin.overview.read', actor.id, actor.id);
-      return { patients, doctors, totalAppointments, pendingAppointments };
+      return { patientCount, doctorCount, appointmentCount, pendingAppointmentCount };
     },
     doctors: async (_, { locationId, specialityId, search }, { prisma }) => {
       const where = {};
@@ -103,29 +127,14 @@ const resolvers = {
       audit('appointments.read', actor.id, actor.id);
       return prisma.appointment.findMany({ where, include: APPOINTMENT_INCLUDE, orderBy: { date: 'desc' } });
     },
-    patientMedicalRecords: async (_, { patientId }, { prisma, user }) => {
-      const actor = requireUser(user);
-      const targetId = validateObjectId(patientId, 'patient identifier');
-      if (actor.role === 'PATIENT') {
-        const profile = await prisma.patient.findUnique({ where: { userId: actor.id }, select: { id: true } });
-        if (!profile || profile.id !== targetId) throw publicError('Not authorized.', 'FORBIDDEN');
-      } else if (actor.role === 'DOCTOR') {
-        const doctor = await prisma.doctor.findUnique({ where: { userId: actor.id }, select: { id: true } });
-        const treating = doctor && await prisma.appointment.findFirst({
-          where: { patientId: targetId, doctorId: doctor.id },
-          select: { id: true },
-        });
-        if (!treating) throw publicError('Not authorized.', 'FORBIDDEN');
-      } else if (actor.role !== 'ADMIN') {
-        throw publicError('Not authorized.', 'FORBIDDEN');
-      }
-      audit('medical-record.read', actor.id, targetId);
-      return prisma.medicalRecord.findMany({
-        where: { patientId: targetId },
-        include: { patient: true },
-        orderBy: { createdAt: 'desc' },
-      });
+    myMedicalRecords: async (_, __, { prisma, user }) => {
+      const actor = requireRole(user, 'PATIENT');
+      const profile = await prisma.patient.findUnique({ where: { userId: actor.id }, select: { id: true } });
+      if (!profile) throw publicError('Patient profile not found.');
+      return readPatientMedicalRecords(profile.id, prisma, actor);
     },
+    patientMedicalRecords: (_, { patientId }, { prisma, user }) =>
+      readPatientMedicalRecords(patientId, prisma, user),
   },
   Mutation: {
     registerPatient: async (_, args, { prisma }) => {

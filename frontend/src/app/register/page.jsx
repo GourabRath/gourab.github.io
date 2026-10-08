@@ -30,20 +30,28 @@ export default function Register() {
   const register = async (event) => {
     event.preventDefault();
     if (loading) return;
+    if (!form.email.trim() && !form.phone.trim()) {
+      setError("Enter an email address or mobile number to use for sign-in.");
+      return;
+    }
     setLoading(true);
     setError("");
     try {
       const data = await graphqlRequest(
         `mutation RegisterPatient(
-          $email: String!, $password: String!, $firstName: String!, $lastName: String!,
-          $phone: String!, $dob: String, $sex: String, $address: String
+          $email: String, $password: String!, $firstName: String!, $lastName: String!,
+          $phone: String, $dob: String, $sex: String, $address: String
         ) {
           registerPatient(
             email: $email, password: $password, firstName: $firstName, lastName: $lastName,
             phone: $phone, dob: $dob, sex: $sex, address: $address
           ) { token user { id email role } }
         }`,
-        { ...form, email: form.email.trim(), phone: form.phone.trim() },
+        {
+          ...form,
+          email: form.email.trim() || null,
+          phone: form.phone.trim() || null,
+        },
       );
       localStorage.setItem("token", data.registerPatient.token);
       localStorage.setItem("user", JSON.stringify(data.registerPatient.user));
@@ -76,7 +84,7 @@ export default function Register() {
           <div className="form-head">
             <div className="eyebrow">Patient account</div>
             <h2>Create your account</h2>
-            <p>Fields marked with * are required.</p>
+            <p>Use an email address or mobile number and a password to sign in.</p>
           </div>
 
           <form onSubmit={register}>
@@ -95,9 +103,9 @@ export default function Register() {
               </div>
             </div>
             <div className="field">
-              <label htmlFor="email">Email address *</label>
+              <label htmlFor="email">Email address</label>
               <div className="field-input">
-                <input id="email" name="email" type="email" autoComplete="email" value={form.email} onChange={updateField} maxLength={254} required />
+                <input id="email" name="email" type="email" autoComplete="email" value={form.email} onChange={updateField} maxLength={254} />
               </div>
             </div>
             <div className="field">
@@ -107,9 +115,9 @@ export default function Register() {
               </div>
             </div>
             <div className="field">
-              <label htmlFor="phone">Phone number *</label>
+              <label htmlFor="phone">Mobile number</label>
               <div className="field-input">
-                <input id="phone" name="phone" type="tel" autoComplete="tel" value={form.phone} onChange={updateField} maxLength={24} required />
+                <input id="phone" name="phone" type="tel" autoComplete="tel" value={form.phone} onChange={updateField} maxLength={24} />
               </div>
             </div>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">

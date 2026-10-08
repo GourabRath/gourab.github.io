@@ -49,11 +49,11 @@ Public reads: `doctors`, `locations`, `specialities`, `healthPackages`, and `doc
 
 Authenticated operations:
 
-- `adminOverview` is admin-only and returns real MongoDB-backed Prisma counts for patients, doctors, all appointments, and `PENDING` appointments.
+- `adminOverview` is admin-only and returns real MongoDB-backed Prisma counts as `patientCount`, `doctorCount`, `appointmentCount`, and `pendingAppointmentCount`.
 - `me` returns the current user's safe profile; `myAppointments` is scoped to the patient/doctor, or all appointments for an admin.
 - `bookAppointment(doctorId, date, startTime, notes)` is patient-only. It validates IDs, future dates, time, doctor and optional configured availability; rejects a non-cancelled doctor/date/time collision; and creates a `PENDING` appointment. For compatibility with the existing seed (which does not configure availability), a doctor with no availability rows is treated as having no configured restriction.
 - `updateAppointmentStatus(appointmentId, status)` is restricted to the appointment patient, assigned doctor, or admin. Patients may cancel pending/confirmed appointments; doctors/admins may confirm pending appointments and complete/cancel/mark no-show on confirmed appointments. Terminal states cannot be reopened.
-- `patientMedicalRecords(patientId)` allows only the patient themself, an admin, or a doctor with an appointment for that patient. A patient can supply their profile ID from `me.patient.id`; a treating doctor can use the relevant patient ID. `addMedicalRecord` is limited to admins and treating doctors.
+- `myMedicalRecords` returns the authenticated patient's own records without a client-supplied ID. `patientMedicalRecords(patientId)` allows only the patient themself, an admin, or a doctor with an appointment for that patient. A treating doctor can use the relevant patient ID. `addMedicalRecord` is limited to admins and treating doctors.
 - `createPaymentIntent(appointmentId)` is patient-owner-only and requires Stripe configuration; it never simulates a payment or changes payment status to paid.
 - `askAIAssistant(message)` requires authentication and bounded input; responses are explicitly non-diagnostic and include a professional-care/emergency disclaimer.
 

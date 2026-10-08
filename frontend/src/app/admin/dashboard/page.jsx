@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { graphqlRequest } from "@/lib/graphql";
+import { graphqlRequest, isAuthenticationError } from "@/lib/graphql";
 
 export default function AdminDashboard() {
   const router = useRouter();
@@ -42,7 +42,9 @@ export default function AdminDashboard() {
       } catch (loadError) {
         if (active) {
           setError(loadError.message);
-          if (loadError.message.toLowerCase().includes("auth")) {
+          if (isAuthenticationError(loadError)) {
+            localStorage.removeItem("token");
+            localStorage.removeItem("user");
             router.replace("/login?role=admin");
           }
         }

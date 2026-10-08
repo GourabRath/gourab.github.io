@@ -3,15 +3,16 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { formatDate, graphqlRequest } from "@/lib/graphql";
+import { formatDate, graphqlRequest, isAuthenticationError } from "@/lib/graphql";
 
 const appointmentFields = `
   id date startTime status notes
   doctor { firstName lastName specialization }
 `;
 
-function localDateInputValue() {
+function localDateInputValue(daysAhead = 0) {
   const date = new Date();
+  date.setDate(date.getDate() + daysAhead);
   date.setMinutes(date.getMinutes() - date.getTimezoneOffset());
   return date.toISOString().slice(0, 10);
 }
@@ -41,6 +42,7 @@ export default function PatientDashboard() {
         me { id email role patient { id firstName lastName phone } }
         doctors { id firstName lastName specialization experienceYears }
         myAppointments { ${appointmentFields} }
+        myMedicalRecords { id title description fileUrl createdAt }
       }
     `);
 
@@ -57,16 +59,7 @@ export default function PatientDashboard() {
         new URLSearchParams(window.location.search).get("doctor") ||
         "",
     );
-
-    const recordData = await graphqlRequest(
-      `query PatientRecords($patientId: ID!) {
-        patientMedicalRecords(patientId: $patientId) {
-          id title description fileUrl createdAt
-        }
-      }`,
-      { patientId: data.me.patient.id },
-    );
-    setRecords(recordData.patientMedicalRecords || []);
+    setRecords(data.myMedicalRecords || []);
   }, []);
 
   useEffect(() => {
@@ -77,7 +70,9 @@ export default function PatientDashboard() {
       } catch (loadError) {
         if (active) {
           setError(loadError.message);
-          if (loadError.message.toLowerCase().includes("auth")) {
+          if (isAuthenticationError(loadError)) {
+            localStorage.removeItem("token");
+            localStorage.removeItem("user");
             router.replace("/login?role=patient");
           }
         }
@@ -164,6 +159,14 @@ export default function PatientDashboard() {
     router.replace("/login?role=patient");
   };
 
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const upcomingCount = appointments.filter(
+    (appointment) =>
+      ["PENDING", "CONFIRMED"].includes(appointment.status) &&
+      new Date(appointment.date) >= today,
+  ).length;
+
   if (loading) {
     return (
       <main className="min-h-screen min-w-0 w-full bg-[#f8f9fa] p-8 text-[var(--ink)]">
@@ -181,7 +184,7 @@ export default function PatientDashboard() {
           </Link>
           <div className="flex items-center gap-3">
             <span className="hidden text-sm text-[var(--ink-soft)] sm:block">
-              {user?.patient?.firstName || user?.email}
+              {user?.patient?.firstName || user?.email || user?.patient?.phone || "Patient"}
             </span>
             <button
               className="rounded-lg border border-[var(--border)] px-3 py-2 text-sm font-semibold transition hover:bg-gray-50 disabled:opacity-50"
@@ -226,7 +229,7 @@ export default function PatientDashboard() {
         <section className="grid gap-4 sm:grid-cols-3" aria-label="Care summary">
           {[
             ["Appointments", appointments.length],
-            ["Upcoming", appointments.filter((item) => ["PENDING", "CONFIRMED"].includes(item.status)).length],
+            ["Upcoming", upcomingCount],
             ["Medical records", records.length],
           ].map(([label, value]) => (
             <article key={label} className="rounded-xl border border-[var(--border)] bg-white p-5 shadow-sm">
@@ -266,7 +269,7 @@ export default function PatientDashboard() {
                 <input
                   className="mt-2 w-full rounded-lg border border-[var(--border)] bg-white p-3 font-normal"
                   type="date"
-                  min={localDateInputValue()}
+                  min={localDateInputValue(1)}
                   value={selectedDate}
                   onChange={(event) => setSelectedDate(event.target.value)}
                   required

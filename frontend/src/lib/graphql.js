@@ -15,6 +15,10 @@ export function getSession() {
   }
 }
 
+export function isAuthenticationError(error) {
+  return /auth|token|unauthorized|forbidden/i.test(error?.message || "");
+}
+
 export async function graphqlRequest(query, variables = {}) {
   const session = getSession();
   const response = await fetch(GRAPHQL_URL, {
@@ -55,6 +59,7 @@ export function formatDate(value, options = {}) {
   if (Number.isNaN(date.getTime())) return "Date unavailable";
 
   return new Intl.DateTimeFormat("en-US", {
+    timeZone: "UTC",
     month: "short",
     day: "2-digit",
     year: "numeric",
