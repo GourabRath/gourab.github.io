@@ -99,15 +99,15 @@ function LoginContent() {
 
           <form onSubmit={signIn}>
             <div className="field">
-              <label htmlFor="login-identity">Email address</label>
+              <label htmlFor="login-identity">Email or phone number</label>
               <div className="field-input">
                 <input
                   id="login-identity"
-                  type="email"
+                  type="text"
                   autoComplete="username"
                   value={identity}
                   onChange={(event) => setIdentity(event.target.value)}
-                  placeholder="you@example.com"
+                  placeholder="you@example.com or +91…"
                   required
                 />
               </div>

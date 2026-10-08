@@ -37,11 +37,11 @@ export async function graphqlRequest(query, variables = {}) {
   if (!response.ok) {
     throw new Error(result?.errors?.[0]?.message || "The request failed.");
   }
-  if (result.errors?.length) {
+  if (result?.errors?.length) {
     throw new Error(result.errors[0].message || "The request failed.");
   }
 
-  return result.data;
+  return result?.data;
 }
 
 export function formatDate(value, options = {}) {

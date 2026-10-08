@@ -16,6 +16,7 @@ export default function DoctorDashboard() {
   const [noteTitle, setNoteTitle] = useState("");
   const [noteDescription, setNoteDescription] = useState("");
   const [noteMessage, setNoteMessage] = useState("");
+  const [noteSaving, setNoteSaving] = useState(false);
 
   const loadDashboard = useCallback(async () => {
     setError("");
@@ -77,8 +78,9 @@ export default function DoctorDashboard() {
 
   const saveVisitNote = async (event, patientId) => {
     event.preventDefault();
-    if (!noteTitle.trim() || !noteDescription.trim()) return;
+    if (!noteTitle.trim() || !noteDescription.trim() || noteSaving) return;
 
+    setNoteSaving(true);
     setNoteMessage("");
     try {
       await graphqlRequest(
@@ -99,6 +101,8 @@ export default function DoctorDashboard() {
       setNoteAppointmentId("");
     } catch (saveError) {
       setNoteMessage(saveError.message);
+    } finally {
+      setNoteSaving(false);
     }
   };
 
@@ -112,11 +116,11 @@ export default function DoctorDashboard() {
   const confirmedCount = appointments.filter((item) => item.status === "CONFIRMED").length;
 
   if (loading) {
-    return <main className="min-h-screen bg-[#f8f9fa] p-8"><p role="status">Loading your schedule…</p></main>;
+    return <main className="min-h-screen min-w-0 w-full bg-[#f8f9fa] p-8"><p role="status">Loading your schedule…</p></main>;
   }
 
   return (
-    <main className="min-h-screen bg-[#f8f9fa] text-[var(--ink)]">
+    <main className="min-h-screen min-w-0 w-full bg-[#f8f9fa] text-[var(--ink)]">
       <header className="sticky top-0 z-30 border-b border-[var(--border)] bg-white/95 px-5 py-4 backdrop-blur sm:px-8">
         <div className="mx-auto flex max-w-7xl items-center justify-between gap-4">
           <Link href="/" className="text-lg font-bold text-[var(--gold-dark)]">
@@ -269,8 +273,8 @@ export default function DoctorDashboard() {
                           required
                         />
                       </label>
-                      <button className="justify-self-start rounded-lg bg-[var(--teal)] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[var(--teal-dark)]">
-                        Save to patient records
+                      <button disabled={noteSaving} className="justify-self-start rounded-lg bg-[var(--teal)] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[var(--teal-dark)] disabled:cursor-not-allowed disabled:opacity-50">
+                        {noteSaving ? "Saving…" : "Save to patient records"}
                       </button>
                     </form>
                   )}

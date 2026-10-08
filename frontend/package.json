@@ -6,7 +6,7 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint src/app src/lib --ignore-pattern \"**/*_backup.jsx\""
   },
   "dependencies": {
     "@apollo/client": "^4.3.0",

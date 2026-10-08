@@ -17,7 +17,10 @@ export default function Home() {
 
   return (
     <div
+      className="home-page"
       style={{
+        width: "100%",
+        minWidth: 0,
         backgroundColor: "var(--bg)",
         color: "var(--ink)",
         minHeight: "100vh",
@@ -31,11 +34,14 @@ export default function Home() {
           padding: "8px 20px",
           display: "flex",
           justifyContent: "space-between",
+          alignItems: "center",
+          flexWrap: "wrap",
+          gap: "8px",
           borderBottom: "1px solid var(--border)",
           fontSize: "13px",
         }}
       >
-        <div style={{ display: "flex", gap: "20px", alignItems: "center" }}>
+        <div style={{ display: "flex", gap: "20px", alignItems: "center", flexWrap: "wrap" }}>
           <div
             style={{
               color: "var(--danger)",
@@ -51,7 +57,7 @@ export default function Home() {
             📞 1800 309 0309
           </div>
         </div>
-        <div style={{ display: "flex", gap: "15px" }}>
+        <div style={{ display: "flex", gap: "15px", flexWrap: "wrap", justifyContent: "flex-end" }}>
           <Link
             href="/login?role=patient"
             style={{
@@ -91,7 +97,8 @@ export default function Home() {
           padding: "15px 20px",
           display: "flex",
           alignItems: "center",
-          gap: "40px",
+          gap: "16px",
+          flexWrap: "wrap",
           borderBottom: "1px solid var(--border)",
           backgroundColor: "var(--surface)",
           position: "sticky",
@@ -126,7 +133,8 @@ export default function Home() {
         <div
           style={{
             display: "flex",
-            gap: "25px",
+            gap: "14px",
+            flexWrap: "wrap",
             fontSize: "15px",
             fontWeight: 500,
           }}
@@ -138,19 +146,19 @@ export default function Home() {
             Find a Doctor
           </Link>
           <Link
-            href="/specialities"
+            href="/doctors"
             style={{ color: "var(--ink)", textDecoration: "none" }}
           >
             Treatments & Specialities
           </Link>
           <Link
-            href="/hospitals"
+            href="/doctors"
             style={{ color: "var(--ink)", textDecoration: "none" }}
           >
             Hospitals & Clinics
           </Link>
           <Link
-            href="/patients"
+            href="/login?role=patient"
             style={{ color: "var(--ink)", textDecoration: "none" }}
           >
             Patients & Visitors
@@ -177,6 +185,7 @@ export default function Home() {
       <section
         style={{
           position: "relative",
+          width: "100%",
           height: "400px",
           backgroundColor: "#f8f9fa",
           backgroundImage:
@@ -193,7 +202,7 @@ export default function Home() {
           padding: "0 20px",
         }}
       >
-        <h1 style={{ fontSize: "42px", fontWeight: 700, marginBottom: "15px" }}>
+        <h1 style={{ fontSize: "clamp(28px, 8vw, 42px)", fontWeight: 700, marginBottom: "15px" }}>
           Trusted Care, Every Day
         </h1>
         <p
@@ -212,6 +221,7 @@ export default function Home() {
           onSubmit={handleSearch}
           style={{
             display: "flex",
+            minWidth: 0,
             backgroundColor: "#fff",
             padding: "8px",
             borderRadius: "8px",
@@ -227,6 +237,7 @@ export default function Home() {
             onChange={(e) => setSearchQuery(e.target.value)}
             style={{
               flex: 1,
+              minWidth: 0,
               padding: "12px 15px",
               border: "none",
               outline: "none",
@@ -254,7 +265,7 @@ export default function Home() {
 
       {/* Centers of Excellence */}
       <section
-        style={{ padding: "80px 20px", maxWidth: "1200px", margin: "0 auto" }}
+        style={{ padding: "80px 20px", width: "100%", maxWidth: "1200px", boxSizing: "border-box", margin: "0 auto" }}
       >
         <div style={{ textAlign: "center", marginBottom: "50px" }}>
           <h2
@@ -296,7 +307,7 @@ export default function Home() {
           ].map((spec) => (
             <Link
               key={spec.name}
-              href={`/doctors?speciality=${spec.name}`}
+              href={`/doctors?search=${encodeURIComponent(spec.name)}`}
               style={{
                 backgroundColor: "var(--surface)",
                 border: "1px solid var(--border)",
@@ -329,6 +340,8 @@ export default function Home() {
         <div
           style={{
             maxWidth: "1200px",
+            width: "100%",
+            boxSizing: "border-box",
             margin: "0 auto",
             display: "grid",
             gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
@@ -369,7 +382,7 @@ export default function Home() {
               </li>
               <li>
                 <Link
-                  href="/hospitals"
+                  href="/doctors"
                   style={{ color: "#fff", textDecoration: "none" }}
                 >
                   Hospitals

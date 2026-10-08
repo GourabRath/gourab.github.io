@@ -166,14 +166,14 @@ export default function PatientDashboard() {
 
   if (loading) {
     return (
-      <main className="min-h-screen bg-[#f8f9fa] p-8 text-[var(--ink)]">
+      <main className="min-h-screen min-w-0 w-full bg-[#f8f9fa] p-8 text-[var(--ink)]">
         <p role="status">Loading your patient portal…</p>
       </main>
     );
   }
 
   return (
-    <main className="min-h-screen bg-[#f8f9fa] text-[var(--ink)]">
+    <main className="min-h-screen min-w-0 w-full bg-[#f8f9fa] text-[var(--ink)]">
       <header className="sticky top-0 z-30 border-b border-[var(--border)] bg-white/95 px-5 py-4 backdrop-blur sm:px-8">
         <div className="mx-auto flex max-w-7xl items-center justify-between gap-4">
           <Link href="/" className="text-lg font-bold text-[var(--teal)]">

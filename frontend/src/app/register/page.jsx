@@ -7,6 +7,9 @@ import { graphqlRequest } from "@/lib/graphql";
 
 export default function Register() {
   const router = useRouter();
+  const today = new Date();
+  today.setMinutes(today.getMinutes() - today.getTimezoneOffset());
+  const maxDate = today.toISOString().slice(0, 10);
   const [form, setForm] = useState({
     firstName: "",
     lastName: "",
@@ -113,7 +116,7 @@ export default function Register() {
               <div className="field">
                 <label htmlFor="dob">Date of birth</label>
                 <div className="field-input">
-                  <input id="dob" name="dob" type="date" max={new Date().toISOString().slice(0, 10)} value={form.dob} onChange={updateField} />
+                  <input id="dob" name="dob" type="date" max={maxDate} value={form.dob} onChange={updateField} />
                 </div>
               </div>
               <div className="field">

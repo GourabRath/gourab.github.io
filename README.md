@@ -1,65 +1,100 @@
-# MediCare Hospital Platform
+# MediCare Health
 
-A beginner-friendly Express and SQLite foundation for the existing MediCare static portal. The server owns authentication, authorization, appointment conflicts, and persistence; the HTML pages are served from the same origin.
+MediCare is a full-stack healthcare management **demo** built with a Next.js
+frontend and an Express, GraphQL, Prisma, and MongoDB backend. It includes
+patient registration and sign-in, a doctor directory, appointment requests,
+provider appointment management, patient visit notes, an admin overview, and
+optional AI-generated health information.
 
-## Local setup
+> This project is for learning and demonstration. Do not enter real patient
+> information or use it to make clinical decisions. It is not a certified
+> electronic health record or emergency service.
 
-Requirements: Node.js 20 or newer.
+## Requirements
+
+- Node.js 20 or newer
+- MongoDB running locally or a MongoDB connection string
+
+## Setup
+
+From the repository root, install each app's dependencies:
 
 ```powershell
+Set-Location backend
 npm.cmd install
+npx.cmd prisma generate
 Copy-Item .env.example .env
-npm.cmd start
 ```
 
-Open http://localhost:3000. The database is created at `data/medicare.sqlite` on first start, and `server.js` initializes or migrates its tables automatically. For development, the default JWT secret works; set a long random `JWT_SECRET` before any shared or production deployment.
+Edit `backend/.env` before starting the server. Set `DATABASE_URL` to your
+MongoDB database and replace `JWT_SECRET` with a randomly generated secret of
+at least 32 characters. `GEMINI_API_KEY` is optional; without it, the AI
+guidance feature reports that it is unavailable.
 
-PowerShell may block `npm.ps1`; use `npm.cmd` as shown above.
-
-## Seed accounts
-
-All seeded accounts use `Password123!` for local development only:
-
-- Patient: `asha@example.com`
-- Doctor: `e.watson@medicare-hospital.app`
-- Admin: `r.kapoor`
-
-Change or remove seed credentials before deployment. Passwords are stored as bcrypt hashes, never plaintext.
-
-## API summary
-
-JSON requests use `Content-Type: application/json`. Login creates an HTTP-only, SameSite session cookie. A bearer token is also accepted for API clients.
-
-- `POST /api/auth/login` `{ identity, password, role }`
-- `POST /api/auth/register` `{ name, email, password }` (creates a patient account)
-- `GET /api/auth/me`, `POST /api/auth/logout`
-- `GET /api/doctors?search=&specialty=`
-- `GET /api/doctors/:id/availability`
-- `GET /api/appointments` (patient-owned or doctor-owned; admin sees all)
-- `POST /api/appointments` (patient: `{ doctorId, date, time, reason }`)
-- `PATCH /api/appointments/:id/cancel` (own patient appointment or admin)
-- `PATCH /api/doctors/me/availability` (doctor: `{ availability: [{ dayOfWeek, startTime, endTime }] }`)
-- `POST /api/prescriptions` (doctor: `{ patientId, appointmentId, medicine, instructions }`)
-- `GET /api/admin/overview` (admin only)
-
-Invalid input returns `400`, missing authentication `401`, wrong role `403`, missing records `404`, and appointment conflicts `409`.
-
-## Checks
+In a second terminal, install and start the frontend:
 
 ```powershell
-npm.cmd run syntax
+Set-Location frontend
+npm.cmd install
+npm.cmd run dev
+```
+
+Open <http://localhost:3000>. The frontend connects to
+`http://localhost:4000/graphql` by default. To use a different backend URL, set
+`NEXT_PUBLIC_GRAPHQL_URL` in `frontend/.env.local`.
+
+## Start the backend
+
+In another terminal:
+
+```powershell
+Set-Location backend
+node src/seed.js
+node src/index.js
+```
+
+The seed command creates local demo accounts when they do not already exist:
+
+| Role | Email | Password |
+|---|---|---|
+| Patient | `asha@example.com` | `Password123!` |
+| Doctor | `dr.watson@medicare.com` | `Password123!` |
+| Admin | `admin@medicare.com` | `Password123!` |
+
+These credentials are for local development only. Change/remove them before
+sharing a deployment. Never commit `.env` files or use the example JWT secret
+outside a local demo.
+
+You can also use `start.bat` from the repository root to open the backend and
+frontend in separate command windows after configuring MongoDB and the backend
+environment.
+
+## Main routes
+
+- `/` — public home page
+- `/doctors` — searchable doctor directory
+- `/register` — patient account registration
+- `/login` — patient, doctor, or admin sign-in
+- `/patient/dashboard` — appointments, records, and optional AI guidance
+- `/doctor/dashboard` — appointment requests and visit-note entry
+- `/admin/dashboard` — database-backed operational totals and doctor directory
+
+## Validation
+
+```powershell
+Set-Location frontend
+npm.cmd run lint
+npm.cmd run build
+
+Set-Location ..\backend
 npm.cmd test
 ```
 
-A quick manual check after starting the server:
+## Notes
 
-```powershell
-$body = @{ identity = 'asha@example.com'; password = 'Password123!'; role = 'patient' } | ConvertTo-Json
-Invoke-WebRequest http://localhost:3000/api/auth/login -Method Post -ContentType 'application/json' -Body $body
-Invoke-WebRequest http://localhost:3000/api/doctors?specialty=Cardiology
-```
-
-## Production notes
-
-Use a strong secret and a real HTTPS origin, restrict `CORS_ORIGIN`, keep the SQLite file on persistent storage, and put the app behind a TLS-terminating reverse proxy. A production deployment should add a managed database, centralized session revocation, backups, monitoring, and a formal privacy/security review before handling real health information.
-
+- Backend authentication and role checks are enforced by the API; the
+  dashboard redirects are not a substitute for authorization.
+- Payments, third-party file storage, notifications, and production deployment
+  are not enabled unless separately configured and implemented.
+- AI health guidance is informational, may be unavailable without a provider
+  key, and is not a diagnosis, prescription, or replacement for a clinician.

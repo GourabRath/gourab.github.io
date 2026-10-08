@@ -1,5 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const TEST_SECRET = require('node:crypto').randomBytes(32).toString('hex');
 const bcrypt = require('bcryptjs');
 const { buildSchema } = require('graphql');
 const {
@@ -20,13 +21,14 @@ const OTHER_ID = '507f1f77bcf86cd799439012';
 
 test('GraphQL schema parses and includes availability and protected workflows', () => {
   assert.doesNotThrow(() => buildSchema(typeDefs));
+  assert.doesNotMatch(typeDefs, /type User \{[^}]*\bpassword\s*:/is);
 });
 
 test('JWT requires configured strong secret and verifies issuer, audience and role', () => {
   const oldSecret = process.env.JWT_SECRET;
   delete process.env.JWT_SECRET;
   assert.throws(() => createToken({ id: OBJECT_ID, role: 'PATIENT' }), /JWT_SECRET/);
-  process.env.JWT_SECRET = 'unit-test-secret-that-is-at-least-32-chars';
+  process.env.JWT_SECRET = TEST_SECRET;
   try {
     const token = createToken({ id: OBJECT_ID, role: 'PATIENT' });
     assert.deepEqual(verifyToken(token), { id: OBJECT_ID, role: 'PATIENT' });
@@ -45,9 +47,38 @@ test('external inputs reject weak password, malformed ObjectId, date and time', 
   assert.throws(() => validateTime('25:90'));
 });
 
+test('admin overview returns database counts and denies other roles before querying', async () => {
+  const countCalls = [];
+  const prisma = {
+    patient: { count: async () => { countCalls.push(['patients']); return 8; } },
+    doctor: { count: async () => { countCalls.push(['doctors']); return 3; } },
+    appointment: {
+      count: async (args) => {
+        countCalls.push(['appointments', args || {}]);
+        return args ? 2 : 17;
+      },
+    },
+  };
+  await assert.rejects(
+    resolvers.Query.adminOverview(null, {}, { prisma, user: { id: OBJECT_ID, role: 'PATIENT' } }),
+    /Not authorized/,
+  );
+  assert.equal(countCalls.length, 0);
+  const overview = await resolvers.Query.adminOverview(null, {}, {
+    prisma, user: { id: OBJECT_ID, role: 'ADMIN' },
+  });
+  assert.deepEqual(overview, {
+    patients: 8,
+    doctors: 3,
+    totalAppointments: 17,
+    pendingAppointments: 2,
+  });
+  assert.deepEqual(countCalls[3], ['appointments', { where: { status: 'PENDING' } }]);
+});
+
 test('login verifies stored password and returns no password hash', async () => {
   const oldSecret = process.env.JWT_SECRET;
-  process.env.JWT_SECRET = 'unit-test-secret-that-is-at-least-32-chars';
+  process.env.JWT_SECRET = TEST_SECRET;
   const hash = await bcrypt.hash('Password123!', 4);
   const user = {
     id: OBJECT_ID,
@@ -153,6 +184,54 @@ test('doctor cannot access or write records for a patient they do not treat', as
   );
   assert.equal(recordRead, false);
   assert.equal(recordCreated, false);
+});
+
+test('patient owner and treating doctor can read their medical records', async () => {
+  const returnedRecords = [{ id: OBJECT_ID, patientId: OTHER_ID, title: 'Visit summary' }];
+  let readCount = 0;
+  const prisma = {
+    patient: {
+      findUnique: async ({ where }) => where.userId === OBJECT_ID ? { id: OTHER_ID } : null,
+    },
+    doctor: { findUnique: async () => ({ id: OBJECT_ID }) },
+    appointment: { findFirst: async () => ({ id: 'treatment-appointment' }) },
+    medicalRecord: {
+      findMany: async ({ where }) => {
+        assert.deepEqual(where, { patientId: OTHER_ID });
+        readCount += 1;
+        return returnedRecords;
+      },
+    },
+  };
+  const patientRecords = await resolvers.Query.patientMedicalRecords(null, { patientId: OTHER_ID }, {
+    prisma, user: { id: OBJECT_ID, role: 'PATIENT' },
+  });
+  const doctorRecords = await resolvers.Query.patientMedicalRecords(null, { patientId: OTHER_ID }, {
+    prisma, user: { id: OTHER_ID, role: 'DOCTOR' },
+  });
+  assert.deepEqual(patientRecords, returnedRecords);
+  assert.deepEqual(doctorRecords, returnedRecords);
+  assert.equal(readCount, 2);
+});
+
+test('admin can review records and confirm appointments without bypassing transition rules', async () => {
+  let recordFilter;
+  let changedStatus;
+  const current = { id: OBJECT_ID, patientId: OTHER_ID, doctorId: OBJECT_ID, status: 'PENDING' };
+  const prisma = {
+    medicalRecord: { findMany: async ({ where }) => { recordFilter = where; return []; } },
+    appointment: {
+      findUnique: async () => current,
+      update: async ({ data }) => { changedStatus = data.status; return { ...current, status: data.status }; },
+    },
+  };
+  const user = { id: OBJECT_ID, role: 'ADMIN' };
+  await resolvers.Query.patientMedicalRecords(null, { patientId: OTHER_ID }, { prisma, user });
+  assert.deepEqual(recordFilter, { patientId: OTHER_ID });
+  await resolvers.Mutation.updateAppointmentStatus(null, {
+    appointmentId: OBJECT_ID, status: 'CONFIRMED',
+  }, { prisma, user });
+  assert.equal(changedStatus, 'CONFIRMED');
 });
 
 test('payment intent never succeeds without Stripe configuration or appointment ownership', async () => {

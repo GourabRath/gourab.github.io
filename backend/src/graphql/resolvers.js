@@ -16,8 +16,8 @@ const {
 
 const SAFE_USER_SELECT = { id: true, email: true, role: true };
 const APPOINTMENT_INCLUDE = {
-  doctor: { include: { user: { select: SAFE_USER_SELECT }, location: true, speciality: true } },
-  patient: { include: { user: { select: SAFE_USER_SELECT } } },
+  doctor: { include: { location: true, speciality: true } },
+  patient: true,
 };
 
 function publicUser(user) {
@@ -31,9 +31,18 @@ function profileInclude() {
   };
 }
 
-function emit(io, event, appointment) {
-  // Realtime events carry no clinical notes, contact data, or profile objects.
-  if (io) io.emit(event, { appointmentId: appointment.id, status: appointment.status });
+function validateFileUrl(value) {
+  const url = validateText(value, 'record URL', { max: 1000 });
+  if (url.startsWith('/') && !url.startsWith('//') && !url.includes('\\') && !url.split('/').includes('..')) {
+    return url;
+  }
+  try {
+    const parsed = new URL(url);
+    if (parsed.protocol === 'https:' && parsed.hostname && !parsed.username && !parsed.password) return url;
+  } catch (_) {
+    // Handled by the safe input error below.
+  }
+  throw publicError('Invalid record URL.');
 }
 
 const resolvers = {
@@ -42,6 +51,17 @@ const resolvers = {
       const actor = requireUser(user);
       const found = await prisma.user.findUnique({ where: { id: actor.id }, select: { ...SAFE_USER_SELECT, ...profileInclude() } });
       return found ? publicUser(found) : null;
+    },
+    adminOverview: async (_, __, { prisma, user }) => {
+      const actor = requireRole(user, 'ADMIN');
+      const [patients, doctors, totalAppointments, pendingAppointments] = await Promise.all([
+        prisma.patient.count(),
+        prisma.doctor.count(),
+        prisma.appointment.count(),
+        prisma.appointment.count({ where: { status: 'PENDING' } }),
+      ]);
+      audit('admin.overview.read', actor.id, actor.id);
+      return { patients, doctors, totalAppointments, pendingAppointments };
     },
     doctors: async (_, { locationId, specialityId, search }, { prisma }) => {
       const where = {};
@@ -57,7 +77,7 @@ const resolvers = {
       }
       return prisma.doctor.findMany({
         where,
-        include: { user: { select: SAFE_USER_SELECT }, location: true, speciality: true },
+        include: { location: true, speciality: true },
       });
     },
     locations: (_, __, { prisma }) => prisma.location.findMany(),
@@ -80,6 +100,7 @@ const resolvers = {
       else if (actor.role === 'DOCTOR' && found.doctor) where = { doctorId: found.doctor.id };
       else if (actor.role === 'ADMIN') where = {};
       else return [];
+      audit('appointments.read', actor.id, actor.id);
       return prisma.appointment.findMany({ where, include: APPOINTMENT_INCLUDE, orderBy: { date: 'desc' } });
     },
     patientMedicalRecords: async (_, { patientId }, { prisma, user }) => {
@@ -98,6 +119,7 @@ const resolvers = {
       } else if (actor.role !== 'ADMIN') {
         throw publicError('Not authorized.', 'FORBIDDEN');
       }
+      audit('medical-record.read', actor.id, targetId);
       return prisma.medicalRecord.findMany({
         where: { patientId: targetId },
         include: { patient: true },
@@ -150,7 +172,13 @@ const resolvers = {
       } finally {
         await client.close();
       }
-      const user = { id: userId.toString(), email, role: 'PATIENT' };
+      const user = {
+        id: userId.toString(),
+        email,
+        role: 'PATIENT',
+        patient: { id: patientId.toString(), firstName, lastName, phone },
+        doctor: null,
+      };
       audit('patient.register', user.id, patientId.toString());
       return { token: createToken(user), user };
     },
@@ -179,12 +207,13 @@ const resolvers = {
       return { token: createToken(user), user };
     },
     askAIAssistant: async (_, { message }, { user }) => {
-      requireUser(user);
+      const actor = requireUser(user);
       const safeMessage = validateText(message, 'message', { min: 5, max: 1500 });
+      audit('ai.guidance', actor.id, actor.id);
       const aiService = require('../services/ai.service');
       return aiService.getSymptomGuidance(safeMessage);
     },
-    bookAppointment: async (_, { doctorId, date, startTime, notes }, { prisma, user, io }) => {
+    bookAppointment: async (_, { doctorId, date, startTime, notes }, { prisma, user }) => {
       const actor = requireRole(user, 'PATIENT');
       const doctorKey = validateObjectId(doctorId, 'doctor identifier');
       const appointmentDate = validateDate(date, { future: true });
@@ -198,16 +227,16 @@ const resolvers = {
       if (!await prisma.doctor.findUnique({ where: { id: doctorKey }, select: { id: true } })) {
         throw publicError('Doctor not found.');
       }
-      const day = appointmentDate.getUTCDay();
+      const slotDate = new Date(`${date.slice(0, 10)}T00:00:00.000Z`);
+      const day = slotDate.getUTCDay();
       const availability = await prisma.availability.findMany({ where: { doctorId: doctorKey, dayOfWeek: day } });
       if (availability.length && !availability.some(slot => slot.startTime <= time && time < slot.endTime)) {
         throw publicError('Doctor is not available at that time.');
       }
-      const slotDate = new Date(`${date.slice(0, 10)}T00:00:00.000Z`);
       const conflict = await prisma.appointment.findFirst({
         where: {
           doctorId: doctorKey,
-          date: slotDate,
+          date: { gte: slotDate, lt: new Date(slotDate.getTime() + 24 * 60 * 60 * 1000) },
           startTime: time,
           status: { not: 'CANCELLED' },
         },
@@ -226,10 +255,9 @@ const resolvers = {
         include: APPOINTMENT_INCLUDE,
       });
       audit('appointment.book', actor.id, appointment.id);
-      emit(io, 'appointmentBooked', appointment);
       return appointment;
     },
-    updateAppointmentStatus: async (_, { appointmentId, status }, { prisma, user, io }) => {
+    updateAppointmentStatus: async (_, { appointmentId, status }, { prisma, user }) => {
       const actor = requireUser(user);
       const id = validateObjectId(appointmentId, 'appointment identifier');
       const next = typeof status === 'string' ? status.toUpperCase() : '';
@@ -260,7 +288,6 @@ const resolvers = {
         include: APPOINTMENT_INCLUDE,
       });
       audit('appointment.status', actor.id, id);
-      emit(io, 'appointmentStatusUpdated', updated);
       return updated;
     },
     createPaymentIntent: async (_, { appointmentId }, { prisma, user }) => {
@@ -269,7 +296,10 @@ const resolvers = {
       const patient = await prisma.patient.findUnique({ where: { userId: actor.id }, select: { id: true } });
       const appointment = await prisma.appointment.findUnique({ where: { id } });
       if (!patient || !appointment || appointment.patientId !== patient.id) throw publicError('Appointment not found.');
-      if (appointment.status === 'CANCELLED' || appointment.paymentStatus === 'PAID') {
+      if (!['PENDING', 'CONFIRMED'].includes(appointment.status)
+        || appointment.paymentStatus === 'PAID'
+        || !Number.isInteger(appointment.fee)
+        || appointment.fee <= 0) {
         throw publicError('Payment is not available for this appointment.');
       }
       if (!process.env.STRIPE_SECRET_KEY) throw publicError('Payments are not configured.', 'SERVICE_UNAVAILABLE');
@@ -309,7 +339,7 @@ const resolvers = {
           patientId: targetId,
           title: validateText(title, 'record title', { max: 160 }),
           description: validateText(description, 'record description', { max: 5000 }),
-          fileUrl: fileUrl == null ? null : validateText(fileUrl, 'record URL', { max: 1000 }),
+          fileUrl: fileUrl == null ? null : validateFileUrl(fileUrl),
         },
         include: { patient: true },
       });

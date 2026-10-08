@@ -52,14 +52,14 @@ function assertConfiguration() {
   getJwtSecret();
 }
 
-async function authenticateRequest(req) {
+async function authenticateRequest(req, database = prisma) {
   const header = req.headers.authorization;
   if (!header) return null;
   const match = /^Bearer ([^\s]+)$/i.exec(header);
   if (!match) return null;
   try {
     const claims = verifyToken(match[1]);
-    const current = await prisma.user.findUnique({
+    const current = await database.user.findUnique({
       where: { id: claims.id },
       select: { id: true, role: true, email: true },
     });
@@ -70,7 +70,7 @@ async function authenticateRequest(req) {
   }
 }
 
-async function startServer() {
+async function startServer({ port: requestedPort } = {}) {
   assertConfiguration();
   const origins = allowedOrigins();
   const app = express();
@@ -104,6 +104,14 @@ async function startServer() {
     allowedHeaders: ['Content-Type', 'Authorization', 'Apollo-Require-Preflight'],
   }));
   app.use(express.json({ limit: '32kb' }));
+  const authenticationLimiter = createRateLimiter({ limit: 10, windowMs: 15 * 60_000 });
+  app.use('/graphql', (req, res, next) => {
+    const query = req.body && req.body.query;
+    if (typeof query === 'string' && /\b(login|registerPatient)\b/i.test(query)) {
+      return authenticationLimiter(req, res, next);
+    }
+    return next();
+  });
   app.use('/graphql', createRateLimiter());
 
   const apollo = new ApolloServer({
@@ -131,17 +139,25 @@ async function startServer() {
     context: async ({ req }) => ({
       user: await authenticateRequest(req),
       prisma,
-      io,
     }),
   }));
+  app.use((error, req, res, next) => {
+    if (res.headersSent) return next(error);
+    if (error && error.message === 'Origin not allowed.') {
+      return res.status(403).json({ error: 'Origin not allowed.' });
+    }
+    if (error && error.status === 413) return res.status(413).json({ error: 'Request body too large.' });
+    if (error && error.status === 400) return res.status(400).json({ error: 'Invalid request body.' });
+    return res.status(500).json({ error: 'Request failed.' });
+  });
 
-  const port = Number(process.env.PORT || 4000);
-  if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error('PORT must be a valid TCP port.');
+  const port = requestedPort === undefined ? Number(process.env.PORT || 4000) : requestedPort;
+  if (!Number.isInteger(port) || port < 0 || port > 65535) throw new Error('PORT must be a valid TCP port.');
   await new Promise((resolve, reject) => {
     httpServer.once('error', reject);
     httpServer.listen(port, resolve);
   });
-  console.info(`GraphQL server listening on port ${port}.`);
+  console.info(`GraphQL server listening on port ${httpServer.address().port}.`);
   return { app, httpServer, apollo, io };
 }
 

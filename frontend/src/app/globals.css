@@ -48,7 +48,6 @@ body {
 
 .mono { font-family: 'IBM Plex Mono', monospace; }
 img, svg { display: block; }
-a { color: inherit; }
 
 .wrap {
   max-width: 1360px;

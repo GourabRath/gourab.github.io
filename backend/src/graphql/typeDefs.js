@@ -83,8 +83,16 @@ const typeDefs = `#graphql
     user: User!
   }
 
+  type AdminOverview {
+    patients: Int!
+    doctors: Int!
+    totalAppointments: Int!
+    pendingAppointments: Int!
+  }
+
   type Query {
     me: User
+    adminOverview: AdminOverview!
     doctors(locationId: ID, specialityId: ID, search: String): [Doctor]
     locations: [Location]
     specialities: [Speciality]
