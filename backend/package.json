@@ -4,7 +4,12 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "node src/index.js",
+    "test": "node --test test/*.test.js",
+    "prisma:generate": "prisma generate",
+    "prisma:validate": "prisma validate",
+    "db:push": "prisma db push",
+    "seed": "node src/seed.js",
     "postinstall": "prisma skills sync || exit 0"
   },
   "keywords": [],

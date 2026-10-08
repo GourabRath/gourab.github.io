@@ -1,327 +1,159 @@
 "use client";
 
-import { useEffect, useState, Suspense } from "react";
+import { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
+import { graphqlRequest } from "@/lib/graphql";
 
 function DoctorsContent() {
   const searchParams = useSearchParams();
-  const search = searchParams.get("search") || "";
   const [doctors, setDoctors] = useState([]);
   const [locations, setLocations] = useState([]);
   const [specialities, setSpecialities] = useState([]);
-  const [selectedLocation, setSelectedLocation] = useState("");
-  const [selectedSpeciality, setSelectedSpeciality] = useState(
-    searchParams.get("speciality") || "",
-  );
+  const [search, setSearch] = useState(searchParams.get("search") || "");
+  const [locationId, setLocationId] = useState("");
+  const [specialityId, setSpecialityId] = useState(searchParams.get("speciality") || "");
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
 
-  const fetchFilters = async () => {
-    try {
-      const res = await fetch("http://localhost:4000/graphql", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          query: `
-            query {
-              locations { id city }
-              specialities { id name }
+  useEffect(() => {
+    let active = true;
+    const loadDoctors = async () => {
+      try {
+        const data = await graphqlRequest(
+          `query DoctorDirectory($locationId: ID, $specialityId: ID, $search: String) {
+            locations { id name city state }
+            specialities { id name }
+            doctors(locationId: $locationId, specialityId: $specialityId, search: $search) {
+              id firstName lastName specialization experienceYears
+              location { name city state }
+              speciality { name }
             }
-          `,
-        }),
-      });
-      const { data } = await res.json();
-      if (data) {
-        setLocations(data.locations || []);
-        setSpecialities(data.specialities || []);
-      }
-    } catch (err) {
-      console.error(err);
-    }
-  };
-
-  const fetchDoctors = async () => {
-    setLoading(true);
-    try {
-      const res = await fetch("http://localhost:4000/graphql", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          query: `
-            query GetDoctors($loc: ID, $spec: ID, $search: String) {
-              doctors(locationId: $loc, specialityId: $spec, search: $search) {
-                id firstName lastName specialization experienceYears 
-                location { name city }
-                speciality { name }
-              }
-            }
-          `,
-          variables: {
-            loc: selectedLocation || null,
-            spec: selectedSpeciality || null,
-            search: search || null,
+          }`,
+          {
+            locationId: locationId || null,
+            specialityId: specialityId || null,
+            search: search.trim() || null,
           },
-        }),
-      });
-      const { data } = await res.json();
-      if (data) setDoctors(data.doctors || []);
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchFilters();
-  }, []);
-
-  useEffect(() => {
-    fetchDoctors();
-  }, [selectedLocation, selectedSpeciality, search]);
+        );
+        if (active) {
+          setDoctors(data.doctors || []);
+          setLocations(data.locations || []);
+          setSpecialities(data.specialities || []);
+          setError("");
+        }
+      } catch (loadError) {
+        if (active) setError(loadError.message);
+      } finally {
+        if (active) setLoading(false);
+      }
+    };
+    loadDoctors();
+    return () => {
+      active = false;
+    };
+  }, [locationId, search, specialityId]);
 
   return (
-    <div
-      style={{
-        backgroundColor: "var(--bg)",
-        minHeight: "100vh",
-        fontFamily: "var(--font-body)",
-        color: "var(--ink)",
-      }}
-    >
-      {/* Header */}
-      <div
-        style={{
-          backgroundColor: "var(--teal)",
-          color: "#fff",
-          padding: "40px 20px",
-          textAlign: "center",
-        }}
-      >
-        <h1 style={{ fontSize: "32px", marginBottom: "10px" }}>
-          Find a Doctor
-        </h1>
-        <p style={{ opacity: 0.9 }}>
-          Book appointments with the best specialists
-        </p>
-      </div>
-
-      <div
-        style={{
-          maxWidth: "1200px",
-          margin: "0 auto",
-          padding: "40px 20px",
-          display: "flex",
-          gap: "30px",
-          alignItems: "flex-start",
-          flexWrap: "wrap",
-        }}
-      >
-        {/* Filters Sidebar */}
-        <div
-          style={{
-            flex: "1 1 250px",
-            backgroundColor: "var(--surface)",
-            padding: "20px",
-            borderRadius: "8px",
-            border: "1px solid var(--border)",
-          }}
-        >
-          <h3
-            style={{
-              fontSize: "18px",
-              fontWeight: 600,
-              color: "var(--teal)",
-              marginBottom: "20px",
-            }}
-          >
-            Filter Results
-          </h3>
-
-          <div style={{ marginBottom: "20px" }}>
-            <label
-              style={{
-                display: "block",
-                fontSize: "14px",
-                fontWeight: 600,
-                marginBottom: "8px",
-              }}
-            >
-              City / Location
-            </label>
-            <select
-              value={selectedLocation}
-              onChange={(e) => setSelectedLocation(e.target.value)}
-              style={{
-                width: "100%",
-                padding: "10px",
-                border: "1px solid var(--border)",
-                borderRadius: "4px",
-                backgroundColor: "var(--bg)",
-              }}
-            >
-              <option value="">All Locations</option>
-              {locations.map((loc) => (
-                <option key={loc.id} value={loc.id}>
-                  {loc.city}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div>
-            <label
-              style={{
-                display: "block",
-                fontSize: "14px",
-                fontWeight: 600,
-                marginBottom: "8px",
-              }}
-            >
-              Speciality
-            </label>
-            <select
-              value={selectedSpeciality}
-              onChange={(e) => setSelectedSpeciality(e.target.value)}
-              style={{
-                width: "100%",
-                padding: "10px",
-                border: "1px solid var(--border)",
-                borderRadius: "4px",
-                backgroundColor: "var(--bg)",
-              }}
-            >
-              <option value="">All Specialities</option>
-              {specialities.map((spec) => (
-                <option key={spec.id} value={spec.id}>
-                  {spec.name}
-                </option>
-              ))}
-            </select>
+    <main className="min-h-screen bg-[var(--bg)] text-[var(--ink)]">
+      <header className="border-b border-[var(--border)] bg-white px-5 py-4 sm:px-8">
+        <div className="mx-auto flex max-w-7xl items-center justify-between gap-4">
+          <Link href="/" className="text-lg font-bold text-[var(--teal)]">MediCare Health</Link>
+          <div className="flex gap-3">
+            <Link href="/login?role=patient" className="rounded-lg border border-[var(--border)] px-4 py-2 text-sm font-semibold transition hover:bg-gray-50">Sign in</Link>
+            <Link href="/register" className="rounded-lg bg-[var(--teal)] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[var(--teal-dark)]">Join as patient</Link>
           </div>
         </div>
+      </header>
 
-        {/* Results */}
-        <div style={{ flex: "3 1 600px" }}>
-          <div
-            style={{
-              marginBottom: "20px",
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-            }}
-          >
-            <h2 style={{ fontSize: "20px", fontWeight: 600 }}>
-              {doctors.length} Doctors Found
-            </h2>
-          </div>
+      <section className="bg-[var(--teal)] px-5 py-12 text-center text-white sm:py-16">
+        <p className="text-sm font-semibold uppercase tracking-widest text-white/75">Care starts with the right team</p>
+        <h1 className="mt-3 text-3xl font-bold sm:text-4xl">Find a doctor</h1>
+        <p className="mx-auto mt-3 max-w-xl text-white/85">Browse specialists and request an appointment through your patient portal.</p>
+      </section>
 
-          {loading ? (
-            <p>Loading...</p>
-          ) : (
-            <div
-              style={{ display: "flex", flexDirection: "column", gap: "20px" }}
-            >
-              {doctors.map((doc) => (
-                <div
-                  key={doc.id}
-                  style={{
-                    backgroundColor: "var(--surface)",
-                    border: "1px solid var(--border)",
-                    borderRadius: "8px",
-                    padding: "20px",
-                    display: "flex",
-                    gap: "20px",
-                    alignItems: "center",
-                    flexWrap: "wrap",
-                  }}
-                >
-                  <div
-                    style={{
-                      width: "80px",
-                      height: "80px",
-                      backgroundColor: "var(--teal-tint)",
-                      borderRadius: "50%",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      fontSize: "24px",
-                    }}
-                  >
-                    👨‍⚕️
-                  </div>
-                  <div style={{ flex: 1 }}>
-                    <h3
-                      style={{
-                        fontSize: "18px",
-                        fontWeight: 700,
-                        color: "var(--teal)",
-                        marginBottom: "5px",
-                      }}
-                    >
-                      Dr. {doc.firstName} {doc.lastName}
-                    </h3>
-                    <div
-                      style={{
-                        color: "var(--ink-soft)",
-                        fontSize: "14px",
-                        marginBottom: "5px",
-                      }}
-                    >
-                      <strong>
-                        {doc.speciality?.name || doc.specialization}
-                      </strong>{" "}
-                      • {doc.experienceYears} Years Exp
-                    </div>
-                    <div style={{ color: "var(--ink-soft)", fontSize: "14px" }}>
-                      📍 {doc.location?.name || "Main Campus"},{" "}
-                      {doc.location?.city}
-                    </div>
-                  </div>
-                  <div>
-                    <Link
-                      href="/login?role=patient"
-                      style={{
-                        backgroundColor: "var(--gold)",
-                        color: "#fff",
-                        padding: "10px 20px",
-                        borderRadius: "4px",
-                        textDecoration: "none",
-                        fontWeight: 600,
-                        display: "inline-block",
-                      }}
-                    >
-                      Book Appointment
-                    </Link>
-                  </div>
-                </div>
+      <div className="mx-auto grid max-w-7xl gap-6 px-5 py-8 sm:px-8 lg:grid-cols-[280px_1fr]">
+        <aside className="h-fit rounded-xl border border-[var(--border)] bg-white p-5 shadow-sm">
+          <h2 className="font-bold">Filter doctors</h2>
+          <label className="mt-5 block text-sm font-semibold">
+            Search
+            <input
+              className="mt-2 w-full rounded-lg border border-[var(--border)] p-3 font-normal"
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              placeholder="Name or specialty"
+              maxLength={100}
+            />
+          </label>
+          <label className="mt-4 block text-sm font-semibold">
+            Location
+            <select className="mt-2 w-full rounded-lg border border-[var(--border)] bg-white p-3 font-normal" value={locationId} onChange={(event) => setLocationId(event.target.value)}>
+              <option value="">All locations</option>
+              {locations.map((location) => (
+                <option key={location.id} value={location.id}>
+                  {location.city}, {location.state}
+                </option>
               ))}
-              {doctors.length === 0 && (
-                <div
-                  style={{
-                    backgroundColor: "var(--surface)",
-                    padding: "40px",
-                    textAlign: "center",
-                    borderRadius: "8px",
-                    border: "1px solid var(--border)",
-                  }}
-                >
-                  <p style={{ color: "var(--ink-soft)" }}>
-                    No doctors found matching your criteria.
-                  </p>
-                </div>
-              )}
+            </select>
+          </label>
+          <label className="mt-4 block text-sm font-semibold">
+            Specialty
+            <select className="mt-2 w-full rounded-lg border border-[var(--border)] bg-white p-3 font-normal" value={specialityId} onChange={(event) => setSpecialityId(event.target.value)}>
+              <option value="">All specialties</option>
+              {specialities.map((speciality) => (
+                <option key={speciality.id} value={speciality.id}>{speciality.name}</option>
+              ))}
+            </select>
+          </label>
+        </aside>
+
+        <section aria-live="polite">
+          <div className="mb-4 flex items-center justify-between">
+            <h2 className="text-lg font-bold">Available specialists</h2>
+            {!loading && <span className="text-sm text-[var(--ink-soft)]">{doctors.length} found</span>}
+          </div>
+          {error && (
+            <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800" role="alert">
+              Could not load the doctor directory: {error}
             </div>
           )}
-        </div>
+          {loading ? (
+            <p className="rounded-xl border border-[var(--border)] bg-white p-6 text-sm" role="status">Loading doctors…</p>
+          ) : doctors.length === 0 ? (
+            <p className="rounded-xl border border-[var(--border)] bg-white p-6 text-sm text-[var(--ink-soft)]">No doctors match those filters. Try changing your search.</p>
+          ) : (
+            <ul className="grid gap-4 md:grid-cols-2">
+              {doctors.map((doctor) => (
+                <li key={doctor.id} className="rounded-xl border border-[var(--border)] bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="font-bold">Dr. {doctor.firstName} {doctor.lastName}</p>
+                      <p className="mt-1 text-sm font-semibold text-[var(--teal)]">
+                        {doctor.speciality?.name || doctor.specialization}
+                      </p>
+                    </div>
+                    <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[var(--teal-tint)] text-lg text-[var(--teal)]" aria-hidden="true">✚</div>
+                  </div>
+                  <p className="mt-4 text-sm text-[var(--ink-soft)]">
+                    {doctor.experienceYears} years of experience
+                    {doctor.location?.city ? ` · ${doctor.location.city}` : ""}
+                  </p>
+                  <Link href={`/login?role=patient&doctor=${encodeURIComponent(doctor.id)}`} className="mt-5 inline-flex rounded-lg bg-[var(--teal)] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-[var(--teal-dark)]">
+                    Book appointment
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
       </div>
-    </div>
+    </main>
   );
 }
 
-export default function DoctorsDirectory() {
+export default function DoctorsPage() {
   return (
-    <Suspense fallback={<div>Loading directory...</div>}>
+    <Suspense fallback={<main className="min-h-screen bg-[var(--bg)] p-8">Loading doctor directory…</main>}>
       <DoctorsContent />
     </Suspense>
   );

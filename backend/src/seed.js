@@ -5,7 +5,7 @@ const prisma = new PrismaClient();
 
 async function main() {
   console.log('Seeding database...');
-  const password = await bcrypt.hash('Password123!', 10);
+  const password = await bcrypt.hash('Password123!', 12);
 
   const existingPatient = await prisma.user.findUnique({ where: { email: 'asha@example.com' }});
   if (!existingPatient) {
@@ -59,5 +59,9 @@ async function main() {
   console.log('Seeding finished.');
 }
 
-main().catch(console.error).finally(() => prisma.$disconnect());
-
+main()
+  .catch(() => {
+    console.error('Seeding failed. Verify the MongoDB URL, connection, and Prisma schema.');
+    process.exitCode = 1;
+  })
+  .finally(() => prisma.$disconnect());

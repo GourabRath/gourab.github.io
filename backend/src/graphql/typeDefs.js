@@ -61,6 +61,14 @@ const typeDefs = `#graphql
     doctor: Doctor
   }
 
+  type Availability {
+    id: ID!
+    doctorId: ID!
+    dayOfWeek: Int!
+    startTime: String!
+    endTime: String!
+  }
+
   type MedicalRecord {
     id: ID!
     title: String!
@@ -81,6 +89,7 @@ const typeDefs = `#graphql
     locations: [Location]
     specialities: [Speciality]
     healthPackages: [HealthPackage]
+    doctorAvailability(doctorId: ID!): [Availability!]!
     myAppointments: [Appointment]
     patientMedicalRecords(patientId: ID!): [MedicalRecord]
   }

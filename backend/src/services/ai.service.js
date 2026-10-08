@@ -1,52 +1,43 @@
 const { GoogleGenAI } = require('@google/genai');
 
+const DISCLAIMER = '\n\nDisclaimer: This is general information, not a diagnosis or treatment. Please consult a qualified healthcare professional. If you may be experiencing an emergency, contact local emergency services immediately.';
+const UNAVAILABLE = `AI guidance is temporarily unavailable. Please contact a qualified healthcare professional; if this may be an emergency, contact local emergency services.${DISCLAIMER}`;
+
 class AIService {
   constructor() {
-    // Initialize the SDK. It will automatically use process.env.GEMINI_API_KEY
-    try {
-      this.ai = new GoogleGenAI({});
-    } catch (error) {
-      console.warn("GoogleGenAI initialized without API key. Add GEMINI_API_KEY to .env to enable AI features.");
+    this.ai = null;
+    if (process.env.GEMINI_API_KEY) {
+      try {
+        this.ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+      } catch (_) {
+        // Fail closed; startup and user-facing errors must not expose provider details.
+      }
     }
   }
 
   async getSymptomGuidance(patientMessage) {
-    if (!this.ai) return "AI service is not configured. Please add GEMINI_API_KEY.";
+    if (!this.ai) return UNAVAILABLE;
 
     const systemInstruction = `
-      You are an AI Healthcare Assistant for MediCare Hospital.
-      Your primary role is to provide symptom guidance, suggest relevant medical specialties, and generate summaries.
-      
-      CRITICAL SAFETY RULES:
-      - NEVER claim to provide a definitive diagnosis.
-      - NEVER prescribe medication independently.
-      - NEVER replace a human doctor.
-      - ALWAYS encourage professional consultation.
-      - IF the symptoms sound like an emergency (e.g., severe chest pain, stroke symptoms, severe bleeding), you MUST immediately recommend calling emergency services or visiting the ER.
-      
-      Format your response with the following sections if applicable:
-      - Possible General Causes
-      - Recommended Action (including suggested specialty)
-      - Urgent Warning Signs
+      You provide general symptom information only, never a diagnosis or treatment plan.
+      Do not prescribe medication. Encourage consultation with a qualified healthcare professional.
+      For possible emergencies (including severe chest pain, stroke symptoms, or severe bleeding),
+      direct the user to local emergency services immediately. State uncertainty clearly.
     `;
 
     try {
       const response = await this.ai.models.generateContent({
         model: 'gemini-2.5-flash',
         contents: patientMessage,
-        config: {
-          systemInstruction: systemInstruction,
-          temperature: 0.2, // Keep it deterministic and safe
-        }
+        config: { systemInstruction, temperature: 0.2 },
       });
-
-      return response.text;
-    } catch (error) {
-      console.error("AI Error:", error);
-      throw new Error("Failed to generate AI guidance. Check your API key.");
+      const text = typeof response.text === 'string' ? response.text.trim() : '';
+      return `${text || 'I could not provide guidance for that message.'}${DISCLAIMER}`;
+    } catch (_) {
+      // Never log symptom text or provider payloads; return a safe, non-success-shaped response.
+      return UNAVAILABLE;
     }
   }
 }
 
 module.exports = new AIService();
-
