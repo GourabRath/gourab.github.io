@@ -7,6 +7,7 @@ const {
   requireRole,
   validateText,
   normalizeEmail,
+  normalizePhone,
   validatePassword,
   validateObjectId,
   validateDate,
@@ -15,13 +16,17 @@ const {
 } = require('../security');
 
 const SAFE_USER_SELECT = { id: true, email: true, role: true };
+const PHONE_IDENTITY_SUFFIX = '@phone.invalid';
 const APPOINTMENT_INCLUDE = {
   doctor: { include: { location: true, speciality: true } },
   patient: true,
 };
 
 function publicUser(user) {
-  return { id: user.id, email: user.email, role: user.role, patient: user.patient || null, doctor: user.doctor || null };
+  const email = user.email && !user.email.endsWith(PHONE_IDENTITY_SUFFIX)
+    ? user.email
+    : null;
+  return { id: user.id, email, role: user.role, patient: user.patient || null, doctor: user.doctor || null };
 }
 
 function profileInclude() {
@@ -138,12 +143,12 @@ const resolvers = {
   },
   Mutation: {
     registerPatient: async (_, args, { prisma }) => {
-      const email = normalizeEmail(args.email);
+      const email = args.email ? normalizeEmail(args.email) : null;
       const password = validatePassword(args.password);
       const firstName = validateText(args.firstName, 'first name', { max: 80 });
       const lastName = validateText(args.lastName, 'last name', { max: 80 });
-      const phone = validateText(args.phone, 'phone number', { min: 7, max: 24 });
-      if (!/^[+()\d .-]+$/.test(phone) || phone.replace(/\D/g, '').length < 7) throw publicError('Invalid phone number.');
+      const phone = args.phone ? normalizePhone(args.phone) : null;
+      if (!email && !phone) throw publicError('Provide an email address or mobile number.');
       const sex = args.sex == null ? null : validateText(args.sex, 'sex', { max: 40 });
       const address = args.address == null ? null : validateText(args.address, 'address', { max: 300 });
       let dateOfBirth = null;
@@ -152,8 +157,13 @@ const resolvers = {
         if (dateOfBirth.getTime() > Date.now()) throw publicError('Invalid date of birth.');
       }
       if (!process.env.DATABASE_URL) throw publicError('Database configuration is missing.');
-      if (await prisma.user.findUnique({ where: { email }, select: { id: true } })) throw publicError('Email already registered.');
-      if (await prisma.patient.findFirst({ where: { phone }, select: { id: true } })) throw publicError('Phone number already registered.');
+      const storedEmail = email || `phone-${phone.replace(/\D/g, '')}${PHONE_IDENTITY_SUFFIX}`;
+      if (await prisma.user.findUnique({ where: { email: storedEmail }, select: { id: true } })) {
+        throw publicError(email ? 'Email already registered.' : 'Mobile number already registered.');
+      }
+      if (phone && await prisma.patient.findFirst({ where: { phone }, select: { id: true } })) {
+        throw publicError('Mobile number already registered.');
+      }
 
       const hashedPassword = await bcrypt.hash(password, 12);
       // Keep registration compatible with standalone MongoDB (no multi-document transaction).
@@ -165,12 +175,12 @@ const resolvers = {
         await client.connect();
         const db = client.db();
         await db.collection('User').insertOne({
-          _id: userId, email, password: hashedPassword, role: 'PATIENT', createdAt: new Date(),
+          _id: userId, email: storedEmail, password: hashedPassword, role: 'PATIENT', createdAt: new Date(),
         });
         try {
-          await db.collection('Patient').insertOne({
-            _id: patientId, userId, firstName, lastName, phone, sex, address, dateOfBirth,
-          });
+          const patient = { _id: patientId, userId, firstName, lastName, sex, address, dateOfBirth };
+          if (phone) patient.phone = phone;
+          await db.collection('Patient').insertOne(patient);
         } catch (error) {
           await db.collection('User').deleteOne({ _id: userId });
           throw error;
@@ -202,8 +212,9 @@ const resolvers = {
         const normalized = normalizeEmail(identifier);
         found = await prisma.user.findUnique({ where: { email: normalized }, include: profileInclude() });
       } else {
+        const phone = normalizePhone(identifier);
         const patient = await prisma.patient.findFirst({
-          where: { phone: identifier },
+          where: { phone },
           include: { user: { include: profileInclude() } },
         });
         found = patient && patient.user;

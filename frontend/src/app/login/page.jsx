@@ -6,7 +6,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { graphqlRequest } from "@/lib/graphql";
 
 const DEMO_ACCOUNTS = {
-  patient: { identifier: "asha@example.com", password: "Password123!" },
+  patient: { identifier: "+1 555 010 1001", password: "Password123!" },
   doctor: { identifier: "dr.watson@medicare.com", password: "Password123!" },
   admin: { identifier: "admin@medicare.com", password: "Password123!" },
 };

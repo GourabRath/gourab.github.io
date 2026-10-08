@@ -11,6 +11,7 @@ const {
   validateObjectId,
   validateDate,
   validateTime,
+  normalizePhone,
 } = require('../src/security');
 const typeDefs = require('../src/graphql/typeDefs');
 const resolvers = require('../src/graphql/resolvers');
@@ -53,6 +54,22 @@ test('external inputs reject weak password, malformed ObjectId, date and time', 
   assert.throws(() => validateObjectId('not-an-object-id'));
   assert.throws(() => validateDate('not-a-date'));
   assert.throws(() => validateTime('25:90'));
+});
+
+test('patient mobile identifiers normalize consistently and reject malformed numbers', () => {
+  assert.equal(normalizePhone('+1 (555) 010-1001'), '+15550101001');
+  assert.equal(normalizePhone('0044 20 7946 0958'), '+00442079460958');
+  assert.throws(() => normalizePhone('not a phone'));
+});
+
+test('registration schema allows either email or mobile identifier without a second factor', () => {
+  const schema = buildSchema(typeDefs);
+  const fields = schema.getMutationType().getFields();
+  const registrationArgs = fields.registerPatient.args;
+  assert.equal(registrationArgs.find(({ name }) => name === 'email').type.toString(), 'String');
+  assert.equal(registrationArgs.find(({ name }) => name === 'phone').type.toString(), 'String');
+  assert.equal(registrationArgs.find(({ name }) => name === 'password').type.toString(), 'String!');
+  assert.equal(fields.login.args.find(({ name }) => name === 'password').type.toString(), 'String!');
 });
 
 test('admin overview returns database counts and denies other roles before querying', async () => {

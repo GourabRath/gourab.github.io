@@ -1,7 +1,7 @@
 const typeDefs = `#graphql
   type User {
     id: ID!
-    email: String!
+    email: String
     role: String!
     patient: Patient
     doctor: Doctor
@@ -105,11 +105,11 @@ const typeDefs = `#graphql
 
   type Mutation {
     registerPatient(
-      email: String!, 
+      email: String
       password: String!, 
       firstName: String!, 
       lastName: String!, 
-      phone: String!, 
+      phone: String
       dob: String, 
       sex: String, 
       address: String

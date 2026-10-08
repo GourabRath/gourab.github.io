@@ -28,6 +28,7 @@ export default function PatientDashboard() {
   const [selectedDoctorId, setSelectedDoctorId] = useState("");
   const [selectedDate, setSelectedDate] = useState("");
   const [selectedTime, setSelectedTime] = useState("10:00");
+  const [appointmentNotes, setAppointmentNotes] = useState("");
   const [booking, setBooking] = useState(false);
   const [bookingMessage, setBookingMessage] = useState("");
   const [aiInput, setAiInput] = useState("");
@@ -93,8 +94,8 @@ export default function PatientDashboard() {
     setBookingMessage("");
     try {
       await graphqlRequest(
-        `mutation BookAppointment($doctorId: ID!, $date: String!, $startTime: String!) {
-          bookAppointment(doctorId: $doctorId, date: $date, startTime: $startTime) {
+        `mutation BookAppointment($doctorId: ID!, $date: String!, $startTime: String!, $notes: String) {
+          bookAppointment(doctorId: $doctorId, date: $date, startTime: $startTime, notes: $notes) {
             id status
           }
         }`,
@@ -102,9 +103,11 @@ export default function PatientDashboard() {
           doctorId: selectedDoctorId,
           date: selectedDate,
           startTime: selectedTime,
+          notes: appointmentNotes.trim() || null,
         },
       );
       setBookingMessage("Your appointment request has been sent.");
+      setAppointmentNotes("");
       await loadDashboard();
     } catch (bookingError) {
       setBookingMessage(bookingError.message);
@@ -263,6 +266,16 @@ export default function PatientDashboard() {
                     </option>
                   ))}
                 </select>
+              </label>
+              <label className="text-sm font-semibold sm:col-span-2">
+                Reason for visit (optional)
+                <textarea
+                  className="mt-2 min-h-20 w-full rounded-lg border border-[var(--border)] p-3 font-normal"
+                  value={appointmentNotes}
+                  onChange={(event) => setAppointmentNotes(event.target.value)}
+                  maxLength={1000}
+                  placeholder="Share a short note for your care team"
+                />
               </label>
               <label className="text-sm font-semibold">
                 Date

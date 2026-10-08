@@ -65,7 +65,7 @@ The seed command creates local demo accounts when they do not already exist
 
 | Role | Email | Password |
 |---|---|---|
-| Patient | `asha@example.com` | `Password123!` |
+| Patient | `asha@example.com` or `+1 555 010 1001` | `Password123!` |
 | Doctor | `dr.watson@medicare.com` | `Password123!` |
 | Admin | `admin@medicare.com` | `Password123!` |
 

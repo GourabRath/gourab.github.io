@@ -73,6 +73,14 @@ function normalizeEmail(value) {
   return email;
 }
 
+function normalizePhone(value) {
+  const phone = validateText(value, 'phone number', { min: 7, max: 24 });
+  if (!/^[+()\d .-]+$/.test(phone)) throw publicError('Invalid phone number.');
+  const digits = phone.replace(/\D/g, '');
+  if (digits.length < 7 || digits.length > 15) throw publicError('Invalid phone number.');
+  return `+${digits}`;
+}
+
 function validatePassword(value) {
   if (typeof value !== 'string' || value.length < 10 || value.length > 128) {
     throw publicError('Password must be between 10 and 128 characters.');
@@ -121,6 +129,7 @@ module.exports = {
   requireRole,
   validateText,
   normalizeEmail,
+  normalizePhone,
   validatePassword,
   validateObjectId,
   validateDate,
